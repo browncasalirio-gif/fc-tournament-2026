@@ -227,6 +227,8 @@ function LeagueApp() {
   const [showSeasonModal, setShowSeasonModal] = useState(false);
   const [newSeasonName, setNewSeasonName] = useState('');
   const [showPreseasonModal, setShowPreseasonModal] = useState(false);
+  const [adminEmails, setAdminEmails] = useState<string[]>([]);
+  const [newAdminEmail, setNewAdminEmail] = useState('');
   const [preseasonFixture, setPreseasonFixture] = useState({ homeId: '', awayId: '' });
 
   const fixtures = useMemo(() => {
@@ -309,15 +311,30 @@ function LeagueApp() {
           role = userSnap.data().role || 'user';
         }
         
-        // Hardcoded admin for the provided emails
+        // Check admin emails from Firestore + hardcoded fallback
         const userEmail = currentUser.email?.toLowerCase().trim();
         console.log("Auth State Changed: User Email =", userEmail);
-        
+
+        const hardcodedAdmins = ['olaniyantoheebola@gmail.com', 'thelegendaryeman@gmail.com', 'alikibogy@gmail.com'];
         let isHardcodedAdmin = false;
-        if (userEmail === 'olaniyantoheebola@gmail.com' || userEmail === 'thelegendaryeman@gmail.com' || userEmail === 'alikibogy@gmail.com') {
-          role = 'admin';
-          isHardcodedAdmin = true;
-          console.log("Admin access granted for:", userEmail);
+
+        // Fetch dynamic admin emails from Firestore
+        try {
+          const adminEmailsSnap = await getDoc(doc(db, 'config', 'adminEmails'));
+          const firestoreAdmins: string[] = adminEmailsSnap.exists() ? (adminEmailsSnap.data().emails || []) : [];
+          const allAdmins = [...new Set([...hardcodedAdmins, ...firestoreAdmins])];
+          if (userEmail && allAdmins.includes(userEmail)) {
+            role = 'admin';
+            isHardcodedAdmin = true;
+            console.log("Admin access granted for:", userEmail);
+          }
+        } catch {
+          // Fallback to hardcoded list if Firestore read fails
+          if (userEmail && hardcodedAdmins.includes(userEmail)) {
+            role = 'admin';
+            isHardcodedAdmin = true;
+            console.log("Admin access granted (fallback) for:", userEmail);
+          }
         }
         
         const finalIsAdmin = role === 'admin' || isHardcodedAdmin;
@@ -351,6 +368,15 @@ function LeagueApp() {
         setAllUsers(snapshot.docs.map(doc => doc.data()));
       }, (err) => handleFirestoreError(err, OperationType.LIST, 'users'));
       return () => unsubUsers();
+    }
+  }, [isAdmin]);
+
+  useEffect(() => {
+    if (isAdmin) {
+      const unsubAdminEmails = onSnapshot(doc(db, 'config', 'adminEmails'), (snap) => {
+        setAdminEmails(snap.exists() ? (snap.data().emails || []) : []);
+      });
+      return () => unsubAdminEmails();
     }
   }, [isAdmin]);
 
@@ -1058,6 +1084,32 @@ function LeagueApp() {
     } catch (err) {
       console.error("Failed to toggle admin", err);
       showToast("Failed to update role", 'error');
+    }
+  };
+
+  const addAdminEmail = async () => {
+    const email = newAdminEmail.toLowerCase().trim();
+    if (!email || !email.includes('@')) return showToast('Enter a valid email', 'error');
+    if (adminEmails.includes(email)) return showToast('Email already an admin', 'error');
+    try {
+      const ref = doc(db, 'config', 'adminEmails');
+      await setDoc(ref, { emails: [...adminEmails, email] }, { merge: true });
+      setNewAdminEmail('');
+      showToast(`${email} added as admin`);
+    } catch (err) {
+      console.error("Failed to add admin email", err);
+      showToast('Failed to add admin email', 'error');
+    }
+  };
+
+  const removeAdminEmail = async (email: string) => {
+    try {
+      const ref = doc(db, 'config', 'adminEmails');
+      await setDoc(ref, { emails: adminEmails.filter(e => e !== email) }, { merge: true });
+      showToast(`${email} removed from admins`);
+    } catch (err) {
+      console.error("Failed to remove admin email", err);
+      showToast('Failed to remove admin email', 'error');
     }
   };
 
@@ -2638,6 +2690,59 @@ function LeagueApp() {
                     </div>
                   ))}
                 </div>
+              </div>
+            </div>
+
+            {/* Admin Email Management */}
+            <div className="glass p-8 rounded-2xl border-l-4 border-pl-cyan">
+              <div className="flex items-center gap-4 mb-8">
+                <div className="w-12 h-12 bg-pl-cyan/10 rounded-xl flex items-center justify-center">
+                  <ShieldCheck className="text-pl-cyan" size={24} />
+                </div>
+                <div>
+                  <h2 className="font-display text-2xl uppercase tracking-wider">Admin <span className="text-pl-cyan">Access</span></h2>
+                  <p className="text-white/40 font-condensed uppercase tracking-widest text-[10px]">Manage which emails have admin login</p>
+                </div>
+              </div>
+
+              <div className="flex gap-2 mb-6">
+                <input
+                  type="email"
+                  value={newAdminEmail}
+                  onChange={(e) => setNewAdminEmail(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && addAdminEmail()}
+                  placeholder="email@example.com"
+                  className="flex-1 bg-pl-ink border border-white/10 rounded-xl px-4 py-3 text-xs focus:border-pl-cyan outline-none transition-colors"
+                />
+                <button
+                  onClick={addAdminEmail}
+                  className="bg-pl-cyan text-pl-ink px-5 rounded-xl font-condensed font-bold text-[10px] uppercase tracking-widest hover:brightness-110 transition-all"
+                >
+                  Add
+                </button>
+              </div>
+
+              <div className="space-y-2 max-h-60 overflow-y-auto no-scrollbar">
+                {['olaniyantoheebola@gmail.com', 'thelegendaryeman@gmail.com', 'alikibogy@gmail.com'].map(email => (
+                  <div key={email} className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5">
+                    <span className="text-xs text-white/60 font-mono">{email}</span>
+                    <span className="text-[8px] font-condensed text-white/30 uppercase tracking-widest">Built-in</span>
+                  </div>
+                ))}
+                {adminEmails.map(email => (
+                  <div key={email} className="flex items-center justify-between p-3 rounded-xl bg-pl-cyan/5 border border-pl-cyan/10">
+                    <span className="text-xs text-white/80 font-mono">{email}</span>
+                    <button
+                      onClick={() => removeAdminEmail(email)}
+                      className="text-red-400/60 hover:text-red-400 transition-colors"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ))}
+                {adminEmails.length === 0 && (
+                  <p className="text-[10px] text-white/20 uppercase tracking-widest text-center py-4">No additional admins added yet</p>
+                )}
               </div>
             </div>
 
