@@ -75,7 +75,7 @@ type Fixture = {
   awayScore: number | null;
   status: 'pending' | 'played' | 'overdue';
   deadline: string;
-  competition: 'league' | 'uefa' | 'preseason';
+  competition: 'league' | 'uefa' | 'preseason' | 'playoff';
   ownerUid: string;
   seasonId?: string;
 };
@@ -94,7 +94,7 @@ type PreRegisteredPsn = {
   role: 'admin' | 'user';
 };
 
-type Tab = 'table' | 'fixtures' | 'players' | 'h2h' | 'rules' | 'uefa' | 'admin' | 'market' | 'news';
+type Tab = 'table' | 'fixtures' | 'players' | 'h2h' | 'rules' | 'uefa' | 'admin' | 'market' | 'news' | 'playoff';
 
 type News = {
   id: string;
@@ -239,6 +239,10 @@ function LeagueApp() {
 
   const preseasonFixtures = useMemo(() => {
     return allFixtures.filter(f => f.competition === 'preseason' && f.seasonId === currentSeasonId);
+  }, [allFixtures, currentSeasonId]);
+
+  const playoffFixtures = useMemo(() => {
+    return allFixtures.filter(f => f.competition === 'playoff' && f.seasonId === currentSeasonId);
   }, [allFixtures, currentSeasonId]);
 
   const getPlayerForm = (playerId: string) => {
@@ -636,6 +640,97 @@ function LeagueApp() {
     }
   };
 
+  const generatePlayoffs = async () => {
+    if (!isAdmin || !user || !currentSeasonId) {
+      showToast("Please select a season first", 'error');
+      return;
+    }
+    try {
+      setLoading(true);
+
+      // Need at least 10 players in the table
+      if (tableData.length < 10) {
+        throw new Error("Need at least 10 players in the table to generate playoffs");
+      }
+
+      // Check all league fixtures are played
+      const pendingLeague = fixtures.filter(f => f.status !== 'played');
+      if (pendingLeague.length > 0) {
+        throw new Error(`${pendingLeague.length} league fixture(s) still pending. Complete the league first.`);
+      }
+
+      // Delete existing playoff fixtures for this season
+      const batch = writeBatch(db);
+      playoffFixtures.forEach(f => batch.delete(doc(db, 'fixtures', f.id)));
+
+      const today = new Date();
+      const deadline1 = new Date(today);
+      deadline1.setDate(today.getDate() + 7);
+      const deadline2 = new Date(today);
+      deadline2.setDate(today.getDate() + 14);
+
+      // 7th vs 10th — leg 1 & 2
+      const p7 = tableData[6];
+      const p10 = tableData[9];
+      // 8th vs 9th — leg 1 & 2
+      const p8 = tableData[7];
+      const p9 = tableData[8];
+
+      const playoffMatchups = [
+        { home: p7, away: p10, leg: 1 },
+        { home: p10, away: p7, leg: 2 },
+        { home: p8, away: p9, leg: 1 },
+        { home: p9, away: p8, leg: 2 },
+      ];
+
+      playoffMatchups.forEach(({ home, away, leg }) => {
+        const ref = doc(collection(db, 'fixtures'));
+        const deadline = leg === 1 ? deadline1.toISOString().split('T')[0] : deadline2.toISOString().split('T')[0];
+        batch.set(ref, {
+          matchday: leg,
+          homeId: home.id,
+          awayId: away.id,
+          homeName: home.name,
+          awayName: away.name,
+          homeScore: null,
+          awayScore: null,
+          status: 'pending',
+          deadline,
+          competition: 'playoff',
+          ownerUid: user.uid,
+          seasonId: currentSeasonId,
+        });
+      });
+
+      await batch.commit();
+      showToast("UEFA Playoff fixtures generated! (7th vs 10th, 8th vs 9th — 2 legs each)");
+    } catch (err) {
+      console.error("Playoff generation failed", err);
+      showToast(err instanceof Error ? err.message : "Playoff generation failed", 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Returns playoff aggregate winner between two players from playoffFixtures
+  const getPlayoffWinner = (p1Id: string, p2Id: string): string | null => {
+    const legs = playoffFixtures.filter(f =>
+      (f.homeId === p1Id && f.awayId === p2Id) ||
+      (f.homeId === p2Id && f.awayId === p1Id)
+    );
+    if (legs.length < 2 || legs.some(l => l.status !== 'played')) return null;
+    let p1Goals = 0, p2Goals = 0;
+    legs.forEach(f => {
+      if (f.homeId === p1Id) { p1Goals += f.homeScore || 0; p2Goals += f.awayScore || 0; }
+      else { p2Goals += f.homeScore || 0; p1Goals += f.awayScore || 0; }
+    });
+    if (p1Goals > p2Goals) return p1Id;
+    if (p2Goals > p1Goals) return p2Id;
+    // Tiebreak: away goals (p1 is lower-placed so p2 is higher — higher placed advances)
+    // On exact tie, higher league position advances (lower index = p1 = 7th or 8th)
+    return p1Id;
+  };
+
   const generateUefaDraw = async (reset = false) => {
     if (!isAdmin || !user) return;
     try {
@@ -646,12 +741,36 @@ function LeagueApp() {
 
       if (reset) {
         uefaFixtures.forEach(f => batch.delete(doc(db, 'fixtures', f.id)));
-        playersToDraw = players.map(p => p.id);
+        // Round 1: top 6 from league + 2 playoff winners (8 total)
+        if (tableData.length < 8) throw new Error("Need at least 8 players in the league table");
+
+        const top6 = tableData.slice(0, 6).map(p => p.id);
+
+        // Playoff winners: 7th vs 10th, 8th vs 9th
+        if (tableData.length >= 10) {
+          const w1 = getPlayoffWinner(tableData[6].id, tableData[9].id);
+          const w2 = getPlayoffWinner(tableData[7].id, tableData[8].id);
+          if (!w1 || !w2) throw new Error("Playoff results not complete yet. Finish both playoff ties first.");
+          playersToDraw = [...top6, w1, w2];
+        } else {
+          // Fewer than 10 players — just use top 6 (or all if less)
+          playersToDraw = top6;
+        }
       } else {
         const latestRound = uefaFixtures.length > 0 ? Math.max(...uefaFixtures.map(f => f.matchday)) : 0;
         
         if (latestRound === 0) {
-          playersToDraw = players.map(p => p.id);
+          // Same logic as reset for first draw
+          if (tableData.length < 6) throw new Error("Need at least 6 players in the league table");
+          const top6 = tableData.slice(0, 6).map(p => p.id);
+          if (tableData.length >= 10) {
+            const w1 = getPlayoffWinner(tableData[6].id, tableData[9].id);
+            const w2 = getPlayoffWinner(tableData[7].id, tableData[8].id);
+            if (!w1 || !w2) throw new Error("Playoff results not complete yet. Finish both playoff ties first.");
+            playersToDraw = [...top6, w1, w2];
+          } else {
+            playersToDraw = top6;
+          }
         } else {
           const currentRoundFixtures = uefaFixtures.filter(f => f.matchday === latestRound);
           const pending = currentRoundFixtures.filter(f => f.status !== 'played');
@@ -949,6 +1068,7 @@ function LeagueApp() {
       const batch = writeBatch(db);
       fixtures.forEach(f => batch.delete(doc(db, 'fixtures', f.id)));
       uefaFixtures.forEach(f => batch.delete(doc(db, 'fixtures', f.id)));
+      playoffFixtures.forEach(f => batch.delete(doc(db, 'fixtures', f.id)));
       await batch.commit();
       showToast("League reset successfully");
     } catch (err) {
@@ -1083,6 +1203,7 @@ function LeagueApp() {
       players.forEach(p => batch.delete(doc(db, 'players', p.id)));
       fixtures.forEach(f => batch.delete(doc(db, 'fixtures', f.id)));
       uefaFixtures.forEach(f => batch.delete(doc(db, 'fixtures', f.id)));
+      playoffFixtures.forEach(f => batch.delete(doc(db, 'fixtures', f.id)));
       await batch.commit();
       showToast("All data cleared");
     } catch (err) {
@@ -1314,6 +1435,7 @@ function LeagueApp() {
             { id: 'news', icon: Newspaper, label: 'News', public: true },
             { id: 'rules', icon: ShieldCheck, label: 'Rules', public: true },
             { id: 'players', icon: Users, label: 'Squad', public: true },
+            { id: 'playoff', icon: Swords, label: 'Playoffs', public: true },
             { id: 'uefa', icon: Trophy, label: 'UEFA', public: true },
             { id: 'admin', icon: ShieldCheck, label: 'Admin', public: false },
           ].filter(t => isAdmin || t.public).map((tab) => (
@@ -1465,6 +1587,12 @@ function LeagueApp() {
                 <div className="flex gap-2">
                   {isAdmin && (
                     <>
+                      <button 
+                        onClick={generatePlayoffs}
+                        className="bg-pl-purple text-white px-4 py-2 rounded font-condensed font-bold text-xs uppercase tracking-widest hover:scale-105 transition-transform flex items-center gap-2"
+                      >
+                        <Swords size={14} /> Generate Playoffs
+                      </button>
                       <button 
                         onClick={() => generateUefaDraw(true)}
                         className="bg-white/5 text-white/40 px-4 py-2 rounded font-condensed font-bold text-xs uppercase tracking-widest hover:bg-white/10 transition-all"
@@ -2204,6 +2332,7 @@ function LeagueApp() {
                   { title: "Points System", desc: "3 points for a win, 1 for a draw, 0 for a loss." },
                   { title: "Match Settings", desc: "6 minute halves, Tactical Defending, Normal Game Speed." },
                   { title: "Deadlines", desc: "All fixtures must be played within 7 days of the matchday start. Failure to play results in a 3-0 forfeit." },
+                  { title: "UEFA Qualification", desc: "Top 6 at the end of the league qualify directly for the UEFA bracket. 7th plays 10th and 8th plays 9th in a 2-leg playoff (best aggregate). The two playoff winners join the top 6 in the UEFA bracket." },
                   { title: "Fair Play", desc: "Good vibes only. Rage quitting results in an automatic 3-0 loss and potential league ban." },
                 ].map((rule, i) => (
                   <div key={i} className="glass rounded-xl p-6 flex gap-6">
@@ -2215,6 +2344,170 @@ function LeagueApp() {
                   </div>
                 ))}
               </div>
+            </motion.div>
+          )}
+          {activeTab === 'playoff' && (
+            <motion.div
+              key="playoff"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="space-y-8"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="font-display text-3xl uppercase tracking-wider mb-1">
+                    UEFA <span className="text-pl-purple">Qualifiers</span>
+                  </h2>
+                  <p className="text-white/40 font-condensed uppercase tracking-widest text-xs">
+                    7th vs 10th • 8th vs 9th — Best of 2 legs by aggregate
+                  </p>
+                </div>
+                {isAdmin && (
+                  <button
+                    onClick={generatePlayoffs}
+                    className="bg-pl-purple text-white px-5 py-3 rounded-xl font-condensed font-bold text-xs uppercase tracking-widest hover:scale-105 transition-transform flex items-center gap-2"
+                  >
+                    <Swords size={14} /> Generate Playoffs
+                  </button>
+                )}
+              </div>
+
+              {/* Qualification summary from league table */}
+              {tableData.length >= 6 && (
+                <div className="glass rounded-2xl p-6 border-l-4 border-pl-cyan">
+                  <h3 className="font-condensed font-bold text-xs uppercase tracking-widest text-pl-cyan mb-4">
+                    Direct UEFA Qualifiers — Top 6
+                  </h3>
+                  <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-3">
+                    {tableData.slice(0, 6).map((p, i) => (
+                      <div key={p.id} className="flex items-center gap-3 bg-pl-cyan/10 border border-pl-cyan/20 rounded-xl px-4 py-3">
+                        <span className="font-display text-2xl text-pl-cyan w-7">{i + 1}</span>
+                        <div>
+                          <div className="font-bold text-sm">{p.name}</div>
+                          <div className="text-[10px] text-white/40 uppercase tracking-widest">{p.pts} pts</div>
+                        </div>
+                        <CheckCircle2 className="ml-auto text-pl-cyan" size={16} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Playoff ties */}
+              {tableData.length >= 10 ? (
+                <div className="space-y-10">
+                  {[
+                    { p1: tableData[6], p2: tableData[9], label: '7th vs 10th' },
+                    { p1: tableData[7], p2: tableData[8], label: '8th vs 9th' },
+                  ].map(({ p1, p2, label }) => {
+                    const legs = playoffFixtures.filter(f =>
+                      (f.homeId === p1.id && f.awayId === p2.id) ||
+                      (f.homeId === p2.id && f.awayId === p1.id)
+                    ).sort((a, b) => a.matchday - b.matchday);
+
+                    let p1Agg = 0, p2Agg = 0;
+                    legs.forEach(f => {
+                      if (f.status === 'played') {
+                        if (f.homeId === p1.id) { p1Agg += f.homeScore || 0; p2Agg += f.awayScore || 0; }
+                        else { p2Agg += f.homeScore || 0; p1Agg += f.awayScore || 0; }
+                      }
+                    });
+                    const bothPlayed = legs.length === 2 && legs.every(l => l.status === 'played');
+                    const winner = bothPlayed ? (p1Agg >= p2Agg ? p1 : p2) : null;
+
+                    return (
+                      <div key={label} className="space-y-4">
+                        <div className="flex items-center gap-4">
+                          <div className="h-px flex-grow bg-pl-purple/30" />
+                          <h3 className="font-condensed font-bold text-xs uppercase tracking-[0.3em] text-pl-purple">{label}</h3>
+                          <div className="h-px flex-grow bg-pl-purple/30" />
+                        </div>
+
+                        {/* Aggregate scoreline */}
+                        <div className="glass rounded-2xl p-6 border border-pl-purple/20 flex items-center justify-between gap-4">
+                          <div className="flex-1 text-right">
+                            <div className="font-bold text-lg">{p1.name}</div>
+                            <div className="text-[10px] text-white/40 uppercase tracking-widest">{p1.club}</div>
+                            <div className="text-[10px] text-white/30 mt-1">League Pos: {tableData.indexOf(p1) + 1}</div>
+                          </div>
+                          <div className="text-center px-6">
+                            <div className="font-display text-4xl text-pl-purple">
+                              {legs.some(l => l.status === 'played') ? `${p1Agg} – ${p2Agg}` : '– vs –'}
+                            </div>
+                            <div className="text-[10px] font-condensed text-white/30 uppercase tracking-widest mt-1">Aggregate</div>
+                            {winner && (
+                              <div className="mt-2 bg-pl-purple/20 text-pl-purple text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full border border-pl-purple/30">
+                                {winner.name} advances
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex-1">
+                            <div className="font-bold text-lg">{p2.name}</div>
+                            <div className="text-[10px] text-white/40 uppercase tracking-widest">{p2.club}</div>
+                            <div className="text-[10px] text-white/30 mt-1">League Pos: {tableData.indexOf(p2) + 1}</div>
+                          </div>
+                        </div>
+
+                        {/* Individual legs */}
+                        {legs.length === 0 ? (
+                          <div className="text-center py-8 glass rounded-xl border-dashed border-2 border-white/5">
+                            <p className="text-white/30 font-condensed uppercase tracking-widest text-xs">
+                              No playoff fixtures generated yet
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="grid gap-3">
+                            {legs.map((f, li) => (
+                              <div
+                                key={f.id}
+                                onClick={() => {
+                                  setSelectedFixture(f);
+                                  setScores({ home: f.homeScore || 0, away: f.awayScore || 0 });
+                                  setShowModal(true);
+                                }}
+                                className="glass rounded-lg p-4 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-all border-l-4 border-pl-purple/40 group"
+                              >
+                                <div className="flex-1 text-right font-bold pr-6 group-hover:text-pl-purple transition-colors">
+                                  {f.homeName}
+                                </div>
+                                <div className="flex items-center gap-4 bg-pl-ink/50 px-6 py-2 rounded-full border border-white/5">
+                                  <div className="font-display text-2xl w-8 text-center">
+                                    {f.status === 'played' ? f.homeScore : '-'}
+                                  </div>
+                                  <div className="text-white/20 font-condensed text-[10px] uppercase tracking-widest">VS</div>
+                                  <div className="font-display text-2xl w-8 text-center">
+                                    {f.status === 'played' ? f.awayScore : '-'}
+                                  </div>
+                                </div>
+                                <div className="flex-1 pl-6 font-bold group-hover:text-pl-purple transition-colors">
+                                  {f.awayName}
+                                </div>
+                                <div className="hidden md:block min-w-[80px] text-right">
+                                  <span className={`text-[8px] font-condensed font-bold uppercase tracking-widest px-2 py-1 rounded ${
+                                    f.status === 'played' ? 'bg-green-500/10 text-green-400' :
+                                    f.status === 'overdue' ? 'bg-yellow-500/10 text-yellow-400' :
+                                    'bg-white/5 text-white/30'
+                                  }`}>
+                                    Leg {li + 1} • {f.status === 'played' ? 'FT' : f.status === 'overdue' ? 'Overdue' : 'Pending'}
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-20 glass rounded-xl">
+                  <Swords className="mx-auto text-white/10 mb-4" size={48} />
+                  <p className="text-white/40 font-condensed tracking-widest uppercase">
+                    Need at least 10 players in the league table
+                  </p>
+                </div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
@@ -2267,6 +2560,13 @@ function LeagueApp() {
                 >
                   <Calendar className="text-pl-cyan mb-3 group-hover:scale-110 transition-transform" size={24} />
                   <span className="font-condensed font-bold text-xs uppercase tracking-widest">Manage Seasons</span>
+                </button>
+                <button 
+                  onClick={generatePlayoffs}
+                  className="flex flex-col items-center justify-center p-6 glass rounded-xl hover:bg-pl-purple/10 transition-all group border border-white/5"
+                >
+                  <Swords className="text-pl-purple mb-3 group-hover:scale-110 transition-transform" size={24} />
+                  <span className="font-condensed font-bold text-xs uppercase tracking-widest">Generate Playoffs</span>
                 </button>
                 <button 
                   onClick={() => setShowPreseasonModal(true)}
