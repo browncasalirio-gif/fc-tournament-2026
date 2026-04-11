@@ -1,10 +1,9 @@
 {
-  "projectId": "gen-lang-client-0718257475",
-  "appId": "1:546783344546:web:fc3776b50b0cb4dd7a64fb",
-  "apiKey": "AIzaSyAuLteXz423z8OjCJDTCOrL84zhCsvNH8c",
-  "authDomain": "gen-lang-client-0718257475.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-eab71048-6d29-45cf-8a91-cbd97f9e0995",
-  "storageBucket": "gen-lang-client-0718257475.firebasestorage.app",
-  "messagingSenderId": "546783344546",
-  "measurementId": ""
+  "apiKey": "AIzaSyA0qyBc93NsUsNsI3wJimZ_jh0XEkj9TVc",
+  "authDomain": "fc-tournament-8a67a.firebaseapp.com",
+  "projectId": "fc-tournament-8a67a",
+  "storageBucket": "fc-tournament-8a67a.firebasestorage.app",
+  "messagingSenderId": "611930869253",
+  "appId": "1:611930869253:web:1bf81e9fb03cf3b7fa166c",
+  "measurementId": "G-Q6VG00DMLJ"
 }
