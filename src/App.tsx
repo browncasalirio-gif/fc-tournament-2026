@@ -219,6 +219,8 @@ function LeagueApp() {
   const [newComment, setNewComment] = useState('');
   const [showNewsModal, setShowNewsModal] = useState(false);
   const [bulkResultsText, setBulkResultsText] = useState('');
+  const [h2hEditingFixture, setH2hEditingFixture] = useState<string | null>(null);
+  const [h2hScores, setH2hScores] = useState<{ home: number; away: number }>({ home: 0, away: 0 });
   const [pin, setPin] = useState('');
   const [authError, setAuthError] = useState('');
   const [isAdminLoginMode, setIsAdminLoginMode] = useState(false);
@@ -1207,6 +1209,21 @@ function LeagueApp() {
     }
   };
 
+  const submitH2hScore = async (fixtureId: string) => {
+    if (!user || !isAdmin) return;
+    try {
+      await updateDoc(doc(db, 'fixtures', fixtureId), {
+        homeScore: h2hScores.home,
+        awayScore: h2hScores.away,
+        status: 'played'
+      });
+      setH2hEditingFixture(null);
+      showToast("Score updated!");
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, 'fixtures');
+    }
+  };
+
   const submitScore = async () => {
     if (!selectedFixture || !user) return;
     try {
@@ -2102,23 +2119,69 @@ function LeagueApp() {
                       }
 
                       return (
-                        <div key={f.id} className="glass rounded-lg p-4 flex items-center justify-between group hover:bg-white/5 transition-colors">
-                          <div className="flex items-center gap-3 flex-1">
-                            {result && (
-                              <div className={`w-6 h-6 rounded flex items-center justify-center text-[10px] font-bold ${resultColor}`}>
-                                {result}
-                              </div>
-                            )}
-                            <div className={`font-bold ${isP1Home ? 'text-pl-cyan' : ''}`}>{f.homeName}</div>
+                        <div key={f.id} className="glass rounded-lg p-4 flex flex-col gap-3 group hover:bg-white/5 transition-colors">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3 flex-1">
+                              {result && (
+                                <div className={`w-6 h-6 rounded flex items-center justify-center text-[10px] font-bold ${resultColor}`}>
+                                  {result}
+                                </div>
+                              )}
+                              <div className={`font-bold ${isP1Home ? 'text-pl-cyan' : ''}`}>{f.homeName}</div>
+                            </div>
+
+                            <div className="flex items-center gap-4 px-6 bg-pl-ink/30 py-1 rounded-full">
+                              <div className="font-display text-xl w-6 text-center">{f.status === 'played' ? f.homeScore : '-'}</div>
+                              <div className="text-white/10 font-condensed text-[8px] uppercase tracking-widest">VS</div>
+                              <div className="font-display text-xl w-6 text-center">{f.status === 'played' ? f.awayScore : '-'}</div>
+                            </div>
+
+                            <div className={`flex-1 text-right font-bold ${!isP1Home ? 'text-pl-cyan' : ''}`}>{f.awayName}</div>
                           </div>
-                          
-                          <div className="flex items-center gap-4 px-6 bg-pl-ink/30 py-1 rounded-full">
-                            <div className="font-display text-xl w-6 text-center">{f.status === 'played' ? f.homeScore : '-'}</div>
-                            <div className="text-white/10 font-condensed text-[8px] uppercase tracking-widest">VS</div>
-                            <div className="font-display text-xl w-6 text-center">{f.status === 'played' ? f.awayScore : '-'}</div>
-                          </div>
-                          
-                          <div className={`flex-1 text-right font-bold ${!isP1Home ? 'text-pl-cyan' : ''}`}>{f.awayName}</div>
+
+                          {isAdmin && h2hEditingFixture === f.id ? (
+                            <div className="flex items-center justify-center gap-3 bg-pl-ink/50 p-3 rounded-lg border border-white/10">
+                              <span className="text-[10px] font-condensed text-white/40 uppercase tracking-widest">{f.homeName}</span>
+                              <input
+                                type="number"
+                                min="0"
+                                value={h2hScores.home}
+                                onChange={(e) => setH2hScores({ ...h2hScores, home: parseInt(e.target.value) || 0 })}
+                                className="w-14 bg-pl-ink border border-white/20 rounded-lg px-2 py-2 text-center font-display text-lg focus:border-pl-cyan outline-none"
+                              />
+                              <span className="text-white/20 font-condensed text-xs">-</span>
+                              <input
+                                type="number"
+                                min="0"
+                                value={h2hScores.away}
+                                onChange={(e) => setH2hScores({ ...h2hScores, away: parseInt(e.target.value) || 0 })}
+                                className="w-14 bg-pl-ink border border-white/20 rounded-lg px-2 py-2 text-center font-display text-lg focus:border-pl-cyan outline-none"
+                              />
+                              <span className="text-[10px] font-condensed text-white/40 uppercase tracking-widest">{f.awayName}</span>
+                              <button
+                                onClick={() => submitH2hScore(f.id)}
+                                className="bg-pl-cyan text-pl-ink px-4 py-2 rounded-lg font-condensed font-bold text-[10px] uppercase tracking-widest hover:brightness-110 transition-all"
+                              >
+                                Save
+                              </button>
+                              <button
+                                onClick={() => setH2hEditingFixture(null)}
+                                className="bg-white/10 text-white/60 px-4 py-2 rounded-lg font-condensed font-bold text-[10px] uppercase tracking-widest hover:bg-white/20 transition-all"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          ) : isAdmin ? (
+                            <button
+                              onClick={() => {
+                                setH2hEditingFixture(f.id);
+                                setH2hScores({ home: f.homeScore ?? 0, away: f.awayScore ?? 0 });
+                              }}
+                              className="text-[10px] font-condensed text-pl-cyan/50 uppercase tracking-widest hover:text-pl-cyan transition-colors text-center"
+                            >
+                              {f.status === 'played' ? 'Edit Score' : 'Enter Score'}
+                            </button>
+                          ) : null}
                         </div>
                       );
                     })}
