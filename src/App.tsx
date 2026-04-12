@@ -1332,37 +1332,20 @@ function LeagueApp() {
           </div>
 
           {!isAdminLoginMode ? (
-            <form onSubmit={handleAuth} className="space-y-6">
-              <div>
-                <label className="block text-[10px] font-condensed text-white/40 uppercase tracking-widest mb-2">Viewer Access PIN</label>
-                <div className="relative">
-                  <ShieldCheck className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20" size={18} />
-                  <input 
-                    type="password"
-                    required
-                    value={pin}
-                    onChange={(e) => setPin(e.target.value)}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl pl-12 pr-4 py-4 text-sm focus:border-pl-cyan outline-none transition-all placeholder:text-white/10 text-center tracking-[1em]"
-                    placeholder="••••"
-                    maxLength={4}
-                  />
-                </div>
-              </div>
-
-              {authError && (
-                <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-xl flex items-start gap-3">
-                  <AlertCircle className="text-red-500 shrink-0" size={16} />
-                  <p className="text-[10px] text-red-500 uppercase tracking-wider leading-relaxed">{authError}</p>
-                </div>
-              )}
-
-              <button 
-                type="submit"
+            <div className="space-y-6">
+              <button
+                onClick={() => {
+                  setIsGuest(true);
+                  showToast("Welcome to the League!");
+                }}
                 className="w-full bg-pl-cyan text-pl-ink py-5 rounded-xl font-display text-sm uppercase tracking-widest hover:brightness-110 transition-all shadow-[0_0_20px_rgba(0,255,249,0.3)]"
               >
                 Enter League
               </button>
-            </form>
+              <p className="text-[10px] text-center text-white/40 uppercase tracking-widest leading-relaxed">
+                View the league table, fixtures, and standings
+              </p>
+            </div>
           ) : (
             <div className="space-y-6">
               <button 
