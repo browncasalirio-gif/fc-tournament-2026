@@ -1565,7 +1565,7 @@ function LeagueApp() {
                     <tbody className="divide-y divide-white/5">
                       {tableData.map((row, i) => {
                         const gd = row.gf - row.ga;
-                        const isCurrentUser = players.some(p => p.id === row.id);
+                        const isCurrentUser = false;
                         return (
                           <tr key={row.id} className={`transition-colors group ${isCurrentUser ? 'bg-pl-cyan/10 border-l-4 border-pl-cyan' : 'hover:bg-white/5 border-l-4 border-transparent'}`}>
                             <td className={`px-6 py-5 text-center font-display text-lg ${i < 3 ? 'text-pl-cyan' : 'text-white/40'}`}>
@@ -1583,7 +1583,7 @@ function LeagueApp() {
                                       <span className="bg-pl-cyan text-pl-ink text-[8px] font-bold px-1.5 py-0.5 rounded uppercase tracking-tighter">YOU</span>
                                     )}
                                   </div>
-                                  <div className="text-[10px] font-condensed text-white/40 uppercase tracking-wider">{row.club || 'No Club'}</div>
+                                  {/* Club display removed */}
                                 </div>
                               </div>
                             </td>
@@ -1985,7 +1985,7 @@ function LeagueApp() {
                           </div>
                           <div>
                             <div className="font-bold">{p.name}</div>
-                            <div className="text-[10px] font-condensed text-white/40 uppercase tracking-widest">{p.club || 'No Club'}</div>
+                            {/* Club display removed */}
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
@@ -2480,7 +2480,7 @@ function LeagueApp() {
                         <div className="glass rounded-2xl p-6 border border-pl-purple/20 flex items-center justify-between gap-4">
                           <div className="flex-1 text-right">
                             <div className="font-bold text-lg">{p1.name}</div>
-                            <div className="text-[10px] text-white/40 uppercase tracking-widest">{p1.club}</div>
+                            {/* Club display removed */}
                             <div className="text-[10px] text-white/30 mt-1">League Pos: {tableData.indexOf(p1) + 1}</div>
                           </div>
                           <div className="text-center px-6">
@@ -2496,7 +2496,7 @@ function LeagueApp() {
                           </div>
                           <div className="flex-1">
                             <div className="font-bold text-lg">{p2.name}</div>
-                            <div className="text-[10px] text-white/40 uppercase tracking-widest">{p2.club}</div>
+                            {/* Club display removed */}
                             <div className="text-[10px] text-white/30 mt-1">League Pos: {tableData.indexOf(p2) + 1}</div>
                           </div>
                         </div>
@@ -2675,7 +2675,7 @@ function LeagueApp() {
                         </div>
                         <div>
                           <div className="font-bold text-sm">{p.name}</div>
-                          <div className="text-[10px] text-white/40 uppercase tracking-widest">{p.club}</div>
+                          {/* Club display removed */}
                         </div>
                       </div>
                       <button 
@@ -3140,7 +3140,7 @@ function LeagueApp() {
               </div>
               <div>
                 <h2 className="font-display text-3xl uppercase tracking-wider">{selectedPlayer.name}</h2>
-                <p className="text-pl-cyan font-condensed font-bold uppercase tracking-widest text-sm">{selectedPlayer.club}</p>
+                {/* Club display removed */}
               </div>
             </div>
 
