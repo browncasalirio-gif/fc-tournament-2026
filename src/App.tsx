@@ -675,15 +675,15 @@ function LeagueApp() {
       showToast("All league fixtures are already played!", 'success');
       return;
     }
-    if (!window.confirm(`This will cancel ${pendingLeague.length} unplayed fixture(s) and end the league. The table will stay as-is. Proceed?`)) return;
+    if (!window.confirm(`This will remove ${pendingLeague.length} unplayed fixture(s) and end the league. Played matches and the table will stay exactly as they are. Proceed?`)) return;
     try {
       setLoading(true);
       const batch = writeBatch(db);
       pendingLeague.forEach(f => {
-        batch.update(doc(db, 'fixtures', f.id), { status: 'played', homeScore: 0, awayScore: 0 });
+        batch.delete(doc(db, 'fixtures', f.id));
       });
       await batch.commit();
-      showToast(`League ended! ${pendingLeague.length} fixture(s) marked as 0-0. You can now generate playoffs.`);
+      showToast(`League ended! ${pendingLeague.length} unplayed fixture(s) removed. You can now generate playoffs.`);
     } catch (err) {
       console.error("End league failed", err);
       showToast("Failed to end league", 'error');

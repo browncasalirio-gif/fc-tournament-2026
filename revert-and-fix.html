@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head><title>Revert 0-0 Fixtures</title></head>
+<body>
+<h2>Revert: Undo 0-0 fixtures and delete unplayed ones</h2>
+<p>This will find all fixtures with score 0-0 that were never actually played, revert them, and delete them so the table goes back to normal.</p>
+<button onclick="revertAndFix()">Click to Revert & Fix</button>
+<pre id="log"></pre>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
+import { getFirestore, collection, getDocs, doc, deleteDoc, updateDoc, writeBatch } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
+import { getAuth, signInWithPopup, GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
+
+const app = initializeApp({
+  apiKey: "AIzaSyA0qyBc93NsUsNsI3wJimZ_jh0XEkj9TVc",
+  authDomain: "fc-tournament-8a67a.firebaseapp.com",
+  projectId: "fc-tournament-8a67a",
+  storageBucket: "fc-tournament-8a67a.firebasestorage.app",
+  messagingSenderId: "611930869253",
+  appId: "1:611930869253:web:1bf81e9fb03cf3b7fa166c"
+});
+
+const db = getFirestore(app);
+const auth = getAuth(app);
+const log = document.getElementById('log');
+
+window.revertAndFix = async function() {
+  try {
+    log.textContent = "Signing in with Google...\n";
+    await signInWithPopup(auth, new GoogleAuthProvider());
+    log.textContent += "Signed in as: " + auth.currentUser.email + "\n\n";
+
+    // Get all fixtures
+    const fixturesSnap = await getDocs(collection(db, 'fixtures'));
+    const allFixtures = fixturesSnap.docs.map(d => ({ docId: d.id, ...d.data() }));
+    log.textContent += "Total fixtures: " + allFixtures.length + "\n";
+
+    // Find the 0-0 "played" fixtures (the ones we wrongly set)
+    const zeroZeroFixtures = allFixtures.filter(f =>
+      f.status === 'played' && f.homeScore === 0 && f.awayScore === 0
+    );
+    log.textContent += "0-0 played fixtures found: " + zeroZeroFixtures.length + "\n\n";
+
+    // Show them first
+    log.textContent += "These will be DELETED (they were never actually played):\n";
+    zeroZeroFixtures.forEach(f => {
+      log.textContent += "  " + f.homeName + " 0-0 " + f.awayName + " (MD " + f.matchday + ")\n";
+    });
+
+    log.textContent += "\nDeleting " + zeroZeroFixtures.length + " fake 0-0 fixtures...\n";
+
+    // Delete in batches of 500 (Firestore limit)
+    for (let i = 0; i < zeroZeroFixtures.length; i += 450) {
+      const batch = writeBatch(db);
+      const chunk = zeroZeroFixtures.slice(i, i + 450);
+      chunk.forEach(f => {
+        batch.delete(doc(db, 'fixtures', f.docId));
+      });
+      await batch.commit();
+      log.textContent += "  Deleted batch " + Math.floor(i/450 + 1) + " (" + chunk.length + " fixtures)\n";
+    }
+
+    // Show remaining fixtures
+    const remainingSnap = await getDocs(collection(db, 'fixtures'));
+    const remaining = remainingSnap.docs.map(d => d.data());
+    const played = remaining.filter(f => f.status === 'played');
+    const pending = remaining.filter(f => f.status === 'pending');
+
+    log.textContent += "\n--- DONE! ---\n";
+    log.textContent += "Remaining fixtures: " + remaining.length + "\n";
+    log.textContent += "  Played (with real scores): " + played.length + "\n";
+    log.textContent += "  Pending: " + pending.length + "\n";
+    log.textContent += "\nYour table should now be back to normal!\n";
+    log.textContent += "You can close this page now.";
+  } catch (err) {
+    log.textContent += "\nERROR: " + err.message;
+    console.error(err);
+  }
+}
+</script>
+</body>
+</html>
