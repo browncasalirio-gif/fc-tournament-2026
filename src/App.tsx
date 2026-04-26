@@ -221,6 +221,8 @@ function LeagueApp() {
   const [bulkResultsText, setBulkResultsText] = useState('');
   const [h2hEditingFixture, setH2hEditingFixture] = useState<string | null>(null);
   const [h2hScores, setH2hScores] = useState<{ home: number; away: number }>({ home: 0, away: 0 });
+  const [playoffEditingFixture, setPlayoffEditingFixture] = useState<string | null>(null);
+  const [playoffScores, setPlayoffScores] = useState<{ home: number; away: number }>({ home: 0, away: 0 });
   const [pin, setPin] = useState('');
   const [authError, setAuthError] = useState('');
   const [isAdminLoginMode, setIsAdminLoginMode] = useState(false);
@@ -700,9 +702,11 @@ function LeagueApp() {
     try {
       setLoading(true);
 
-      // Need at least 10 players in the table
-      if (tableData.length < 10) {
-        throw new Error("Need at least 10 players in the table to generate playoffs");
+      // Only consider players who have actually played games
+      const activeTableData = tableData.filter(p => p.p > 0);
+
+      if (activeTableData.length < 10) {
+        throw new Error(`Need at least 10 players with games played. Currently only ${activeTableData.length} players have played.`);
       }
 
       // Check all league fixtures are played
@@ -721,12 +725,12 @@ function LeagueApp() {
       const deadline2 = new Date(today);
       deadline2.setDate(today.getDate() + 14);
 
-      // 7th vs 10th — leg 1 & 2
-      const p7 = tableData[6];
-      const p10 = tableData[9];
+      // 7th vs 10th — leg 1 & 2 (using only players who have played)
+      const p7 = activeTableData[6];
+      const p10 = activeTableData[9];
       // 8th vs 9th — leg 1 & 2
-      const p8 = tableData[7];
-      const p9 = tableData[8];
+      const p8 = activeTableData[7];
+      const p9 = activeTableData[8];
 
       const playoffMatchups = [
         { home: p7, away: p10, leg: 1 },
@@ -1230,6 +1234,21 @@ function LeagueApp() {
       });
     } catch (err) {
       console.error("Failed to generate match report", err);
+    }
+  };
+
+  const submitPlayoffScore = async (fixtureId: string) => {
+    if (!user || !isAdmin) return;
+    try {
+      await updateDoc(doc(db, 'fixtures', fixtureId), {
+        homeScore: playoffScores.home,
+        awayScore: playoffScores.away,
+        status: 'played'
+      });
+      setPlayoffEditingFixture(null);
+      showToast("Playoff score updated!");
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, 'fixtures');
     }
   };
 
@@ -2496,13 +2515,15 @@ function LeagueApp() {
               </div>
 
               {/* Qualification summary from league table */}
-              {tableData.length >= 6 && (
+              {(() => {
+                const activeTable = tableData.filter(p => p.p > 0);
+                return activeTable.length >= 6 ? (
                 <div className="glass rounded-2xl p-6 border-l-4 border-pl-cyan">
                   <h3 className="font-condensed font-bold text-xs uppercase tracking-widest text-pl-cyan mb-4">
                     Direct UEFA Qualifiers — Top 6
                   </h3>
                   <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-3">
-                    {tableData.slice(0, 6).map((p, i) => (
+                    {activeTable.slice(0, 6).map((p, i) => (
                       <div key={p.id} className="flex items-center gap-3 bg-pl-cyan/10 border border-pl-cyan/20 rounded-xl px-4 py-3">
                         <span className="font-display text-2xl text-pl-cyan w-7">{i + 1}</span>
                         <div>
@@ -2514,14 +2535,16 @@ function LeagueApp() {
                     ))}
                   </div>
                 </div>
-              )}
+              ) : null})()}
 
               {/* Playoff ties */}
-              {tableData.length >= 10 ? (
+              {(() => {
+                const activeTable = tableData.filter(p => p.p > 0);
+                return activeTable.length >= 10 ? (
                 <div className="space-y-10">
                   {[
-                    { p1: tableData[6], p2: tableData[9], label: '7th vs 10th' },
-                    { p1: tableData[7], p2: tableData[8], label: '8th vs 9th' },
+                    { p1: activeTable[6], p2: activeTable[9], label: '7th vs 10th' },
+                    { p1: activeTable[7], p2: activeTable[8], label: '8th vs 9th' },
                   ].map(({ p1, p2, label }) => {
                     const legs = playoffFixtures.filter(f =>
                       (f.homeId === p1.id && f.awayId === p2.id) ||
@@ -2583,37 +2606,74 @@ function LeagueApp() {
                             {legs.map((f, li) => (
                               <div
                                 key={f.id}
-                                onClick={() => {
-                                  setSelectedFixture(f);
-                                  setScores({ home: f.homeScore || 0, away: f.awayScore || 0 });
-                                  setShowModal(true);
-                                }}
-                                className="glass rounded-lg p-4 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-all border-l-4 border-pl-purple/40 group"
+                                className="glass rounded-lg p-4 flex flex-col gap-3 transition-all border-l-4 border-pl-purple/40 group"
                               >
-                                <div className="flex-1 text-right font-bold pr-6 group-hover:text-pl-purple transition-colors">
-                                  {f.homeName}
-                                </div>
-                                <div className="flex items-center gap-4 bg-pl-ink/50 px-6 py-2 rounded-full border border-white/5">
-                                  <div className="font-display text-2xl w-8 text-center">
-                                    {f.status === 'played' ? f.homeScore : '-'}
+                                <div className="flex items-center justify-between">
+                                  <div className="flex-1 text-right font-bold pr-6">{f.homeName}</div>
+                                  <div className="flex items-center gap-4 bg-pl-ink/50 px-6 py-2 rounded-full border border-white/5">
+                                    <div className="font-display text-2xl w-8 text-center">
+                                      {f.status === 'played' ? f.homeScore : '-'}
+                                    </div>
+                                    <div className="text-white/20 font-condensed text-[10px] uppercase tracking-widest">VS</div>
+                                    <div className="font-display text-2xl w-8 text-center">
+                                      {f.status === 'played' ? f.awayScore : '-'}
+                                    </div>
                                   </div>
-                                  <div className="text-white/20 font-condensed text-[10px] uppercase tracking-widest">VS</div>
-                                  <div className="font-display text-2xl w-8 text-center">
-                                    {f.status === 'played' ? f.awayScore : '-'}
+                                  <div className="flex-1 pl-6 font-bold">{f.awayName}</div>
+                                  <div className="hidden md:block min-w-[80px] text-right">
+                                    <span className={`text-[8px] font-condensed font-bold uppercase tracking-widest px-2 py-1 rounded ${
+                                      f.status === 'played' ? 'bg-green-500/10 text-green-400' :
+                                      f.status === 'overdue' ? 'bg-yellow-500/10 text-yellow-400' :
+                                      'bg-white/5 text-white/30'
+                                    }`}>
+                                      Leg {li + 1} • {f.status === 'played' ? 'FT' : f.status === 'overdue' ? 'Overdue' : 'Pending'}
+                                    </span>
                                   </div>
                                 </div>
-                                <div className="flex-1 pl-6 font-bold group-hover:text-pl-purple transition-colors">
-                                  {f.awayName}
-                                </div>
-                                <div className="hidden md:block min-w-[80px] text-right">
-                                  <span className={`text-[8px] font-condensed font-bold uppercase tracking-widest px-2 py-1 rounded ${
-                                    f.status === 'played' ? 'bg-green-500/10 text-green-400' :
-                                    f.status === 'overdue' ? 'bg-yellow-500/10 text-yellow-400' :
-                                    'bg-white/5 text-white/30'
-                                  }`}>
-                                    Leg {li + 1} • {f.status === 'played' ? 'FT' : f.status === 'overdue' ? 'Overdue' : 'Pending'}
-                                  </span>
-                                </div>
+
+                                {isAdmin && playoffEditingFixture === f.id ? (
+                                  <div className="flex items-center justify-center gap-3 bg-pl-ink/50 p-3 rounded-lg border border-white/10">
+                                    <span className="text-[10px] font-condensed text-white/40 uppercase tracking-widest">{f.homeName}</span>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      value={playoffScores.home}
+                                      onChange={(e) => setPlayoffScores({ ...playoffScores, home: parseInt(e.target.value) || 0 })}
+                                      className="w-14 bg-pl-ink border border-white/20 rounded-lg px-2 py-2 text-center font-display text-lg focus:border-pl-purple outline-none"
+                                    />
+                                    <span className="text-white/20 font-condensed text-xs">-</span>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      value={playoffScores.away}
+                                      onChange={(e) => setPlayoffScores({ ...playoffScores, away: parseInt(e.target.value) || 0 })}
+                                      className="w-14 bg-pl-ink border border-white/20 rounded-lg px-2 py-2 text-center font-display text-lg focus:border-pl-purple outline-none"
+                                    />
+                                    <span className="text-[10px] font-condensed text-white/40 uppercase tracking-widest">{f.awayName}</span>
+                                    <button
+                                      onClick={() => submitPlayoffScore(f.id)}
+                                      className="bg-pl-purple text-white px-4 py-2 rounded-lg font-condensed font-bold text-[10px] uppercase tracking-widest hover:brightness-110 transition-all"
+                                    >
+                                      Save
+                                    </button>
+                                    <button
+                                      onClick={() => setPlayoffEditingFixture(null)}
+                                      className="bg-white/10 text-white/60 px-4 py-2 rounded-lg font-condensed font-bold text-[10px] uppercase tracking-widest hover:bg-white/20 transition-all"
+                                    >
+                                      Cancel
+                                    </button>
+                                  </div>
+                                ) : isAdmin ? (
+                                  <button
+                                    onClick={() => {
+                                      setPlayoffEditingFixture(f.id);
+                                      setPlayoffScores({ home: f.homeScore ?? 0, away: f.awayScore ?? 0 });
+                                    }}
+                                    className="text-[10px] font-condensed text-pl-purple/50 uppercase tracking-widest hover:text-pl-purple transition-colors text-center"
+                                  >
+                                    {f.status === 'played' ? 'Edit Score' : 'Enter Score'}
+                                  </button>
+                                ) : null}
                               </div>
                             ))}
                           </div>
@@ -2626,10 +2686,10 @@ function LeagueApp() {
                 <div className="text-center py-20 glass rounded-xl">
                   <Swords className="mx-auto text-white/10 mb-4" size={48} />
                   <p className="text-white/40 font-condensed tracking-widest uppercase">
-                    Need at least 10 players in the league table
+                    Need at least 10 players with games played in the league table
                   </p>
                 </div>
-              )}
+              )})()}
             </motion.div>
           )}
         </AnimatePresence>
