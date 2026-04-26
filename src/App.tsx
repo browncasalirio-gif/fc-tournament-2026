@@ -2564,25 +2564,25 @@ function LeagueApp() {
                     return (
                       <div key={label} className="space-y-4">
                         <div className="flex items-center gap-4">
-                          <div className="h-px flex-grow bg-pl-purple/30" />
-                          <h3 className="font-condensed font-bold text-xs uppercase tracking-[0.3em] text-pl-purple">{label}</h3>
-                          <div className="h-px flex-grow bg-pl-purple/30" />
+                          <div className="h-px flex-grow bg-emerald-400/30" />
+                          <h3 className="font-condensed font-bold text-xs uppercase tracking-[0.3em] text-emerald-400">{label}</h3>
+                          <div className="h-px flex-grow bg-emerald-400/30" />
                         </div>
 
                         {/* Aggregate scoreline */}
-                        <div className="glass rounded-2xl p-6 border border-pl-purple/20 flex items-center justify-between gap-4">
+                        <div className="glass rounded-2xl p-6 border border-emerald-400/20 flex items-center justify-between gap-4">
                           <div className="flex-1 text-right">
                             <div className="font-bold text-lg">{p1.name}</div>
                             {/* Club display removed */}
                             <div className="text-[10px] text-white/30 mt-1">League Pos: {tableData.indexOf(p1) + 1}</div>
                           </div>
                           <div className="text-center px-6">
-                            <div className="font-display text-4xl text-pl-purple">
+                            <div className="font-display text-4xl text-emerald-400">
                               {legs.some(l => l.status === 'played') ? `${p1Agg} – ${p2Agg}` : '– vs –'}
                             </div>
                             <div className="text-[10px] font-condensed text-white/30 uppercase tracking-widest mt-1">Aggregate</div>
                             {winner && (
-                              <div className="mt-2 bg-pl-purple/20 text-pl-purple text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full border border-pl-purple/30">
+                              <div className="mt-2 bg-emerald-400/20 text-emerald-400 text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full border border-emerald-400/30">
                                 {winner.name} advances
                               </div>
                             )}
@@ -2606,7 +2606,7 @@ function LeagueApp() {
                             {legs.map((f, li) => (
                               <div
                                 key={f.id}
-                                className="glass rounded-lg p-4 flex flex-col gap-3 transition-all border-l-4 border-pl-purple/40 group"
+                                className="glass rounded-lg p-4 flex flex-col gap-3 transition-all border-l-4 border-emerald-400/40 group"
                               >
                                 <div className="flex items-center justify-between">
                                   <div className="flex-1 text-right font-bold pr-6">{f.homeName}</div>
@@ -2639,7 +2639,7 @@ function LeagueApp() {
                                       min="0"
                                       value={playoffScores.home}
                                       onChange={(e) => setPlayoffScores({ ...playoffScores, home: parseInt(e.target.value) || 0 })}
-                                      className="w-14 bg-pl-ink border border-white/20 rounded-lg px-2 py-2 text-center font-display text-lg focus:border-pl-purple outline-none"
+                                      className="w-14 bg-pl-ink border border-white/20 rounded-lg px-2 py-2 text-center font-display text-lg focus:border-emerald-400 outline-none"
                                     />
                                     <span className="text-white/20 font-condensed text-xs">-</span>
                                     <input
@@ -2647,12 +2647,12 @@ function LeagueApp() {
                                       min="0"
                                       value={playoffScores.away}
                                       onChange={(e) => setPlayoffScores({ ...playoffScores, away: parseInt(e.target.value) || 0 })}
-                                      className="w-14 bg-pl-ink border border-white/20 rounded-lg px-2 py-2 text-center font-display text-lg focus:border-pl-purple outline-none"
+                                      className="w-14 bg-pl-ink border border-white/20 rounded-lg px-2 py-2 text-center font-display text-lg focus:border-emerald-400 outline-none"
                                     />
                                     <span className="text-[10px] font-condensed text-white/40 uppercase tracking-widest">{f.awayName}</span>
                                     <button
                                       onClick={() => submitPlayoffScore(f.id)}
-                                      className="bg-pl-purple text-white px-4 py-2 rounded-lg font-condensed font-bold text-[10px] uppercase tracking-widest hover:brightness-110 transition-all"
+                                      className="bg-emerald-500 text-white px-4 py-2 rounded-lg font-condensed font-bold text-[10px] uppercase tracking-widest hover:brightness-110 transition-all"
                                     >
                                       Save
                                     </button>
