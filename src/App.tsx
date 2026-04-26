@@ -795,33 +795,33 @@ function LeagueApp() {
 
       let playersToDraw: string[] = [];
 
+      const activeTable = tableData.filter(p => p.p > 0);
+
       if (reset) {
         uefaFixtures.forEach(f => batch.delete(doc(db, 'fixtures', f.id)));
         // Round 1: top 6 from league + 2 playoff winners (8 total)
-        if (tableData.length < 8) throw new Error("Need at least 8 players in the league table");
+        if (activeTable.length < 8) throw new Error("Need at least 8 players with games played in the league table");
 
-        const top6 = tableData.slice(0, 6).map(p => p.id);
+        const top6 = activeTable.slice(0, 6).map(p => p.id);
 
         // Playoff winners: 7th vs 9th, 8th vs 10th
-        if (tableData.length >= 10) {
-          const w1 = getPlayoffWinner(tableData[6].id, tableData[8].id);
-          const w2 = getPlayoffWinner(tableData[7].id, tableData[9].id);
+        if (activeTable.length >= 10) {
+          const w1 = getPlayoffWinner(activeTable[6].id, activeTable[8].id);
+          const w2 = getPlayoffWinner(activeTable[7].id, activeTable[9].id);
           if (!w1 || !w2) throw new Error("Playoff results not complete yet. Finish both playoff ties first.");
           playersToDraw = [...top6, w1, w2];
         } else {
-          // Fewer than 10 players — just use top 6 (or all if less)
           playersToDraw = top6;
         }
       } else {
         const latestRound = uefaFixtures.length > 0 ? Math.max(...uefaFixtures.map(f => f.matchday)) : 0;
 
         if (latestRound === 0) {
-          // Same logic as reset for first draw
-          if (tableData.length < 6) throw new Error("Need at least 6 players in the league table");
-          const top6 = tableData.slice(0, 6).map(p => p.id);
-          if (tableData.length >= 10) {
-            const w1 = getPlayoffWinner(tableData[6].id, tableData[8].id);
-            const w2 = getPlayoffWinner(tableData[7].id, tableData[9].id);
+          if (activeTable.length < 6) throw new Error("Need at least 6 players with games played in the league table");
+          const top6 = activeTable.slice(0, 6).map(p => p.id);
+          if (activeTable.length >= 10) {
+            const w1 = getPlayoffWinner(activeTable[6].id, activeTable[8].id);
+            const w2 = getPlayoffWinner(activeTable[7].id, activeTable[9].id);
             if (!w1 || !w2) throw new Error("Playoff results not complete yet. Finish both playoff ties first.");
             playersToDraw = [...top6, w1, w2];
           } else {
@@ -854,8 +854,8 @@ function LeagueApp() {
       for (let i = 0; i < shuffled.length; i += 2) {
         const homeId = shuffled[i];
         const awayId = shuffled[i+1];
-        const homePlayer = players.find(p => p.id === homeId)!;
-        const awayPlayer = awayId ? players.find(p => p.id === awayId)! : null;
+        const homePlayer = allPlayers.find(p => p.id === homeId)!;
+        const awayPlayer = awayId ? allPlayers.find(p => p.id === awayId)! : null;
         const fixtureRef = doc(collection(db, 'fixtures'));
         
         batch.set(fixtureRef, {
