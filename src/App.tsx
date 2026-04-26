@@ -2669,7 +2669,7 @@ function LeagueApp() {
                                       setPlayoffEditingFixture(f.id);
                                       setPlayoffScores({ home: f.homeScore ?? 0, away: f.awayScore ?? 0 });
                                     }}
-                                    className="text-[10px] font-condensed text-pl-purple/50 uppercase tracking-widest hover:text-pl-purple transition-colors text-center"
+                                    className="text-[10px] font-condensed text-emerald-400/60 uppercase tracking-widest hover:text-emerald-400 transition-colors text-center"
                                   >
                                     {f.status === 'played' ? 'Edit Score' : 'Enter Score'}
                                   </button>
