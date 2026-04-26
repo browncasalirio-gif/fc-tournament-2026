@@ -668,6 +668,30 @@ function LeagueApp() {
     }
   };
 
+  const endLeague = async () => {
+    if (!isAdmin || !user || !currentSeasonId) return;
+    const pendingLeague = fixtures.filter(f => f.status !== 'played');
+    if (pendingLeague.length === 0) {
+      showToast("All league fixtures are already played!", 'success');
+      return;
+    }
+    if (!window.confirm(`This will cancel ${pendingLeague.length} unplayed fixture(s) and end the league. The table will stay as-is. Proceed?`)) return;
+    try {
+      setLoading(true);
+      const batch = writeBatch(db);
+      pendingLeague.forEach(f => {
+        batch.update(doc(db, 'fixtures', f.id), { status: 'played', homeScore: 0, awayScore: 0 });
+      });
+      await batch.commit();
+      showToast(`League ended! ${pendingLeague.length} fixture(s) marked as 0-0. You can now generate playoffs.`);
+    } catch (err) {
+      console.error("End league failed", err);
+      showToast("Failed to end league", 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const generatePlayoffs = async () => {
     if (!isAdmin || !user || !currentSeasonId) {
       showToast("Please select a season first", 'error');
@@ -684,7 +708,7 @@ function LeagueApp() {
       // Check all league fixtures are played
       const pendingLeague = fixtures.filter(f => f.status !== 'played');
       if (pendingLeague.length > 0) {
-        throw new Error(`${pendingLeague.length} league fixture(s) still pending. Complete the league first.`);
+        throw new Error(`${pendingLeague.length} league fixture(s) still pending. End the league first or complete all fixtures.`);
       }
 
       // Delete existing playoff fixtures for this season
@@ -2673,7 +2697,15 @@ function LeagueApp() {
                   <Plus className="text-pl-pink mb-3 group-hover:scale-110 transition-transform" size={24} />
                   <span className="font-condensed font-bold text-xs uppercase tracking-widest">Add Preseason Match</span>
                 </button>
-                <button 
+                <button
+                  onClick={endLeague}
+                  className="flex flex-col items-center justify-center p-6 glass rounded-xl hover:bg-amber-500/10 transition-all group border border-white/5"
+                >
+                  <CheckCircle2 className="text-amber-400 mb-3 group-hover:scale-110 transition-transform" size={24} />
+                  <span className="font-condensed font-bold text-xs uppercase tracking-widest">End League</span>
+                  <span className="text-[8px] font-condensed text-white/30 uppercase tracking-widest mt-1">Cancel pending & lock table</span>
+                </button>
+                <button
                   onClick={resetLeague}
                   className="flex flex-col items-center justify-center p-6 glass rounded-xl hover:bg-red-500/10 transition-all group border border-white/5"
                 >

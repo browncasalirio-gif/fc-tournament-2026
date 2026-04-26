@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html>
+<head><title>Fix All - Add Josh-baybee99 Fixtures</title></head>
+<body>
+<h2>Fix: Add Josh-baybee99 Fixtures (if missing)</h2>
+<button onclick="fixAll()">Click to Fix</button>
+<pre id="log"></pre>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
+import { getFirestore, collection, addDoc, getDocs, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
+import { getAuth, signInWithPopup, GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
+
+const app = initializeApp({
+  apiKey: "AIzaSyA0qyBc93NsUsNsI3wJimZ_jh0XEkj9TVc",
+  authDomain: "fc-tournament-8a67a.firebaseapp.com",
+  projectId: "fc-tournament-8a67a",
+  storageBucket: "fc-tournament-8a67a.firebasestorage.app",
+  messagingSenderId: "611930869253",
+  appId: "1:611930869253:web:1bf81e9fb03cf3b7fa166c"
+});
+
+const db = getFirestore(app);
+const auth = getAuth(app);
+const log = document.getElementById('log');
+
+window.fixAll = async function() {
+  try {
+    log.textContent = "Signing in with Google...\n";
+    await signInWithPopup(auth, new GoogleAuthProvider());
+    const uid = auth.currentUser.uid;
+    log.textContent += "Signed in as: " + auth.currentUser.email + "\n\n";
+
+    // Get all players
+    const playersSnap = await getDocs(collection(db, 'players'));
+    const players = playersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    log.textContent += "Players found: " + players.map(p => p.name).join(', ') + "\n\n";
+
+    // Get active season
+    const seasonsSnap = await getDocs(collection(db, 'seasons'));
+    const seasons = seasonsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const activeSeason = seasons.find(s => s.active);
+    if (!activeSeason) {
+      log.textContent += "ERROR: No active season found!";
+      return;
+    }
+    log.textContent += "Active season: " + activeSeason.name + " (ID: " + activeSeason.id + ")\n\n";
+
+    // Get all existing fixtures
+    const fixturesSnap = await getDocs(collection(db, 'fixtures'));
+    const allFixtures = fixturesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    log.textContent += "Total existing fixtures: " + allFixtures.length + "\n";
+
+    // Find Josh-baybee99
+    const newPlayer = players.find(p => p.name.toLowerCase().includes('josh'));
+    if (!newPlayer) {
+      log.textContent += "\nERROR: Could not find Josh-baybee99!\n";
+      log.textContent += "Available players: " + players.map(p => p.name).join(', ');
+      return;
+    }
+    log.textContent += "Found new player: " + newPlayer.name + " (ID: " + newPlayer.id + ")\n";
+
+    // Check which fixtures already exist for Josh
+    const joshFixtures = allFixtures.filter(f =>
+      f.homeId === newPlayer.id || f.awayId === newPlayer.id
+    );
+    log.textContent += "Josh's existing fixtures: " + joshFixtures.length + "\n\n";
+
+    const otherPlayers = players.filter(p => p.id !== newPlayer.id);
+
+    // Find which opponents are missing fixtures
+    const missingHome = [];
+    const missingAway = [];
+
+    for (const opp of otherPlayers) {
+      const hasHome = joshFixtures.some(f => f.homeId === newPlayer.id && f.awayId === opp.id);
+      const hasAway = joshFixtures.some(f => f.awayId === newPlayer.id && f.homeId === opp.id);
+      if (!hasHome) missingHome.push(opp);
+      if (!hasAway) missingAway.push(opp);
+    }
+
+    log.textContent += "Missing home fixtures: " + missingHome.length + "\n";
+    log.textContent += "Missing away fixtures: " + missingAway.length + "\n\n";
+
+    if (missingHome.length === 0 && missingAway.length === 0) {
+      log.textContent += "All fixtures already exist for " + newPlayer.name + "! Nothing to do.\n";
+      return;
+    }
+
+    const maxMatchday = Math.max(...allFixtures.map(f => f.matchday || 0), 0);
+    let matchday = maxMatchday + 1;
+    const today = new Date();
+    let count = 0;
+
+    // Add missing home fixtures
+    for (const opp of missingHome) {
+      const deadline = new Date(today);
+      deadline.setDate(today.getDate() + (count + 1) * 7);
+      await addDoc(collection(db, 'fixtures'), {
+        matchday: matchday,
+        homeId: newPlayer.id,
+        awayId: opp.id,
+        homeName: newPlayer.name,
+        awayName: opp.name,
+        homeScore: null,
+        awayScore: null,
+        status: 'pending',
+        deadline: deadline.toISOString().split('T')[0],
+        competition: 'league',
+        ownerUid: uid,
+        seasonId: activeSeason.id
+      });
+      log.textContent += "  Added: " + newPlayer.name + " vs " + opp.name + " (MD " + matchday + ")\n";
+      matchday++;
+      count++;
+    }
+
+    // Add missing away fixtures
+    for (const opp of missingAway) {
+      const deadline = new Date(today);
+      deadline.setDate(today.getDate() + (count + 1) * 7);
+      await addDoc(collection(db, 'fixtures'), {
+        matchday: matchday,
+        homeId: opp.id,
+        awayId: newPlayer.id,
+        homeName: opp.name,
+        awayName: newPlayer.name,
+        homeScore: null,
+        awayScore: null,
+        status: 'pending',
+        deadline: deadline.toISOString().split('T')[0],
+        competition: 'league',
+        ownerUid: uid,
+        seasonId: activeSeason.id
+      });
+      log.textContent += "  Added: " + opp.name + " vs " + newPlayer.name + " (MD " + matchday + ")\n";
+      matchday++;
+      count++;
+    }
+
+    log.textContent += "\n--- DONE! Added " + count + " missing fixtures for " + newPlayer.name + " ---\n";
+    log.textContent += "Existing fixtures and scores were NOT touched.\n";
+    log.textContent += "You can close this page now.";
+  } catch (err) {
+    log.textContent += "\nERROR: " + err.message;
+    console.error(err);
+  }
+}
+</script>
+</body>
+</html>
