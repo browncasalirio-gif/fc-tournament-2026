@@ -725,18 +725,18 @@ function LeagueApp() {
       const deadline2 = new Date(today);
       deadline2.setDate(today.getDate() + 14);
 
-      // 7th vs 10th — leg 1 & 2 (using only players who have played)
+      // 7th vs 9th — leg 1 & 2 (using only players who have played)
       const p7 = activeTableData[6];
-      const p10 = activeTableData[9];
-      // 8th vs 9th — leg 1 & 2
-      const p8 = activeTableData[7];
       const p9 = activeTableData[8];
+      // 8th vs 10th — leg 1 & 2
+      const p8 = activeTableData[7];
+      const p10 = activeTableData[9];
 
       const playoffMatchups = [
-        { home: p7, away: p10, leg: 1 },
-        { home: p10, away: p7, leg: 2 },
-        { home: p8, away: p9, leg: 1 },
-        { home: p9, away: p8, leg: 2 },
+        { home: p7, away: p9, leg: 1 },
+        { home: p9, away: p7, leg: 2 },
+        { home: p8, away: p10, leg: 1 },
+        { home: p10, away: p8, leg: 2 },
       ];
 
       playoffMatchups.forEach(({ home, away, leg }) => {
@@ -759,7 +759,7 @@ function LeagueApp() {
       });
 
       await batch.commit();
-      showToast("UEFA Playoff fixtures generated! (7th vs 10th, 8th vs 9th — 2 legs each)");
+      showToast("UEFA Playoff fixtures generated! (7th vs 9th, 8th vs 10th — 2 legs each)");
     } catch (err) {
       console.error("Playoff generation failed", err);
       showToast(err instanceof Error ? err.message : "Playoff generation failed", 'error');
@@ -802,10 +802,10 @@ function LeagueApp() {
 
         const top6 = tableData.slice(0, 6).map(p => p.id);
 
-        // Playoff winners: 7th vs 10th, 8th vs 9th
+        // Playoff winners: 7th vs 9th, 8th vs 10th
         if (tableData.length >= 10) {
-          const w1 = getPlayoffWinner(tableData[6].id, tableData[9].id);
-          const w2 = getPlayoffWinner(tableData[7].id, tableData[8].id);
+          const w1 = getPlayoffWinner(tableData[6].id, tableData[8].id);
+          const w2 = getPlayoffWinner(tableData[7].id, tableData[9].id);
           if (!w1 || !w2) throw new Error("Playoff results not complete yet. Finish both playoff ties first.");
           playersToDraw = [...top6, w1, w2];
         } else {
@@ -814,14 +814,14 @@ function LeagueApp() {
         }
       } else {
         const latestRound = uefaFixtures.length > 0 ? Math.max(...uefaFixtures.map(f => f.matchday)) : 0;
-        
+
         if (latestRound === 0) {
           // Same logic as reset for first draw
           if (tableData.length < 6) throw new Error("Need at least 6 players in the league table");
           const top6 = tableData.slice(0, 6).map(p => p.id);
           if (tableData.length >= 10) {
-            const w1 = getPlayoffWinner(tableData[6].id, tableData[9].id);
-            const w2 = getPlayoffWinner(tableData[7].id, tableData[8].id);
+            const w1 = getPlayoffWinner(tableData[6].id, tableData[8].id);
+            const w2 = getPlayoffWinner(tableData[7].id, tableData[9].id);
             if (!w1 || !w2) throw new Error("Playoff results not complete yet. Finish both playoff ties first.");
             playersToDraw = [...top6, w1, w2];
           } else {
@@ -2473,7 +2473,7 @@ function LeagueApp() {
                   { title: "Points System", desc: "3 points for a win, 1 for a draw, 0 for a loss." },
                   { title: "Match Settings", desc: "6 minute halves, Tactical Defending, Normal Game Speed." },
                   { title: "Deadlines", desc: "All fixtures must be played within 7 days of the matchday start. Failure to play results in a 3-0 forfeit." },
-                  { title: "UEFA Qualification", desc: "Top 6 at the end of the league qualify directly for the UEFA bracket. 7th plays 10th and 8th plays 9th in a 2-leg playoff (best aggregate). The two playoff winners join the top 6 in the UEFA bracket." },
+                  { title: "UEFA Qualification", desc: "Top 6 at the end of the league qualify directly for the UEFA bracket. 7th plays 9th and 8th plays 10th in a 2-leg playoff (best aggregate). The two playoff winners join the top 6 in the UEFA bracket." },
                   { title: "Fair Play", desc: "Good vibes only. Rage quitting results in an automatic 3-0 loss and potential league ban." },
                 ].map((rule, i) => (
                   <div key={i} className="glass rounded-xl p-6 flex gap-6">
@@ -2501,7 +2501,7 @@ function LeagueApp() {
                     UEFA <span className="text-pl-purple">Qualifiers</span>
                   </h2>
                   <p className="text-white/40 font-condensed uppercase tracking-widest text-xs">
-                    7th vs 10th • 8th vs 9th — Best of 2 legs by aggregate
+                    7th vs 9th • 8th vs 10th — Best of 2 legs by aggregate
                   </p>
                 </div>
                 {isAdmin && (
@@ -2543,8 +2543,8 @@ function LeagueApp() {
                 return activeTable.length >= 10 ? (
                 <div className="space-y-10">
                   {[
-                    { p1: activeTable[6], p2: activeTable[9], label: '7th vs 10th' },
-                    { p1: activeTable[7], p2: activeTable[8], label: '8th vs 9th' },
+                    { p1: activeTable[6], p2: activeTable[8], label: '7th vs 9th' },
+                    { p1: activeTable[7], p2: activeTable[9], label: '8th vs 10th' },
                   ].map(({ p1, p2, label }) => {
                     const legs = playoffFixtures.filter(f =>
                       (f.homeId === p1.id && f.awayId === p2.id) ||
