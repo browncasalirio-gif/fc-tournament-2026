@@ -1596,12 +1596,17 @@ function LeagueApp() {
             SHATTA MOVEMENT <span className="text-pl-cyan">LEAGUE</span>
           </h1>
           {champions.length > 0 && (
-            <div className="flex items-center justify-center gap-2 mb-4">
-              <Trophy className="text-yellow-400" size={16} />
-              <span className="text-[10px] font-condensed font-bold text-yellow-400 uppercase tracking-[0.3em]">
-                Reigning Champion: {champions[champions.length - 1].winner}
+            <div className="flex flex-col items-center justify-center gap-1 mb-4">
+              <div className="flex items-center gap-2">
+                <Trophy className="text-yellow-400" size={20} />
+                <span className="text-[10px] font-condensed text-yellow-400/60 uppercase tracking-[0.3em]">
+                  Reigning Champion
+                </span>
+                <Trophy className="text-yellow-400" size={20} />
+              </div>
+              <span className="font-display text-3xl md:text-4xl text-yellow-400 uppercase tracking-wider">
+                {champions[champions.length - 1].winner}
               </span>
-              <Trophy className="text-yellow-400" size={16} />
             </div>
           )}
           
@@ -1632,7 +1637,6 @@ function LeagueApp() {
             { id: 'fixtures', icon: Calendar, label: 'Fixtures', public: true },
             { id: 'h2h', icon: Swords, label: 'H2H', public: true },
             { id: 'market', icon: MessageSquare, label: 'Market', public: true },
-            { id: 'news', icon: Newspaper, label: 'News', public: true },
             { id: 'rules', icon: ShieldCheck, label: 'Rules', public: true },
             { id: 'players', icon: Users, label: 'Squad', public: true },
             { id: 'playoff', icon: Swords, label: 'Playoffs', public: true },
@@ -2281,7 +2285,7 @@ function LeagueApp() {
                         className="flex-1 bg-pl-ink border border-white/10 rounded px-4 py-3 text-sm focus:border-pl-cyan outline-none transition-colors"
                       >
                         <option value="">Player 1</option>
-                        {[...allPlayers].sort((a, b) => a.name.localeCompare(b.name)).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                        {[...allPlayers].filter((p, i, arr) => arr.findIndex(x => x.name === p.name) === i).sort((a, b) => a.name.localeCompare(b.name)).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                       </select>
                       <div className="font-display text-xl text-white/20">VS</div>
                       <select 
@@ -2290,7 +2294,7 @@ function LeagueApp() {
                         className="flex-1 bg-pl-ink border border-white/10 rounded px-4 py-3 text-sm focus:border-pl-cyan outline-none transition-colors"
                       >
                         <option value="">Player 2</option>
-                        {[...allPlayers].sort((a, b) => a.name.localeCompare(b.name)).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                        {[...allPlayers].filter((p, i, arr) => arr.findIndex(x => x.name === p.name) === i).sort((a, b) => a.name.localeCompare(b.name)).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                       </select>
                     </div>
                   </div>
