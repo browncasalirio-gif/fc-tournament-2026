@@ -1596,17 +1596,28 @@ function LeagueApp() {
             SHATTA MOVEMENT <span className="text-pl-cyan">LEAGUE</span>
           </h1>
           {champions.length > 0 && (
-            <div className="flex flex-col items-center justify-center gap-1 mb-4">
-              <div className="flex items-center gap-2">
-                <Trophy className="text-yellow-400" size={20} />
-                <span className="text-[10px] font-condensed text-yellow-400/60 uppercase tracking-[0.3em]">
-                  Reigning Champion
+            <div className="relative my-6">
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-yellow-400/10 to-transparent rounded-2xl blur-xl" />
+              <div className="relative glass border-2 border-yellow-400/40 rounded-2xl px-8 py-6 flex flex-col items-center gap-3 shadow-[0_0_40px_rgba(250,204,21,0.15)]">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-yellow-400/20 rounded-full flex items-center justify-center">
+                    <Trophy className="text-yellow-400" size={18} />
+                  </div>
+                  <span className="text-xs font-condensed font-bold text-yellow-400 uppercase tracking-[0.4em]">
+                    Reigning Champion
+                  </span>
+                  <div className="w-8 h-8 bg-yellow-400/20 rounded-full flex items-center justify-center">
+                    <Trophy className="text-yellow-400" size={18} />
+                  </div>
+                </div>
+                <div className="font-display text-4xl md:text-6xl text-yellow-400 uppercase tracking-wider drop-shadow-[0_0_15px_rgba(250,204,21,0.4)]">
+                  {champions[champions.length - 1].winner}
+                </div>
+                <div className="h-px w-32 bg-gradient-to-r from-transparent via-yellow-400/50 to-transparent" />
+                <span className="text-[10px] font-condensed text-yellow-400/40 uppercase tracking-[0.3em]">
+                  {champions[champions.length - 1].season}{champions[champions.length - 1].year ? ` • ${champions[champions.length - 1].year}` : ''}
                 </span>
-                <Trophy className="text-yellow-400" size={20} />
               </div>
-              <span className="font-display text-3xl md:text-4xl text-yellow-400 uppercase tracking-wider">
-                {champions[champions.length - 1].winner}
-              </span>
             </div>
           )}
           
