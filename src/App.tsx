@@ -428,7 +428,14 @@ function LeagueApp() {
     }, (err) => handleFirestoreError(err, OperationType.LIST, 'fixtures'));
 
     const unsubAllPlayers = onSnapshot(collection(db, 'players'), (snapshot) => {
-      setAllPlayers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Player)));
+      const all = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Player));
+      const seen = new Set<string>();
+      const deduped = all.filter(p => {
+        if (seen.has(p.name)) return false;
+        seen.add(p.name);
+        return true;
+      });
+      setAllPlayers(deduped);
     }, (err) => handleFirestoreError(err, OperationType.LIST, 'players'));
 
     const unsubAllFixtures = onSnapshot(collection(db, 'fixtures'), (snapshot) => {
