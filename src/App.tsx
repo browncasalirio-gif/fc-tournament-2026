@@ -570,13 +570,13 @@ function LeagueApp() {
     }
     try {
       setLoading(true);
-      if (players.length < 2) throw new Error("Need at least 2 players to generate fixtures");
+      if (uniquePlayers.length < 2) throw new Error("Need at least 2 players to generate fixtures");
 
       const batch = writeBatch(db);
-      
+
       // Randomize teams for each player
       const shuffledTeams = [...TEAMS_POOL].sort(() => Math.random() - 0.5);
-      const updatedPlayers = players.map((p, index) => {
+      const updatedPlayers = uniquePlayers.map((p, index) => {
         const assignedTeam = shuffledTeams[index % shuffledTeams.length];
         batch.update(doc(db, 'players', p.id), { club: assignedTeam });
         return { ...p, club: assignedTeam };
