@@ -94,7 +94,14 @@ type PreRegisteredPsn = {
   role: 'admin' | 'user';
 };
 
-type Tab = 'table' | 'fixtures' | 'players' | 'h2h' | 'rules' | 'uefa' | 'admin' | 'market' | 'news' | 'playoff';
+type Tab = 'table' | 'fixtures' | 'players' | 'h2h' | 'rules' | 'uefa' | 'admin' | 'market' | 'news' | 'playoff' | 'halloffame';
+
+type Champion = {
+  season: string;
+  winner: string;
+  runnerUp?: string;
+  year?: string;
+};
 
 type News = {
   id: string;
@@ -233,6 +240,9 @@ function LeagueApp() {
   const [showPreseasonModal, setShowPreseasonModal] = useState(false);
   const [adminEmails, setAdminEmails] = useState<string[]>([]);
   const [newAdminEmail, setNewAdminEmail] = useState('');
+  const [champions, setChampions] = useState<Champion[]>([]);
+  const [editingChampion, setEditingChampion] = useState<number | null>(null);
+  const [newChampion, setNewChampion] = useState<Champion>({ season: '', winner: '', runnerUp: '', year: '' });
   const [preseasonFixture, setPreseasonFixture] = useState({ homeId: '', awayId: '' });
 
   const fixtures = useMemo(() => {
@@ -383,6 +393,13 @@ function LeagueApp() {
       return () => unsubAdminEmails();
     }
   }, [isAdmin]);
+
+  useEffect(() => {
+    const unsubChampions = onSnapshot(doc(db, 'config', 'champions'), (snap) => {
+      setChampions(snap.exists() ? (snap.data().list || []) : []);
+    });
+    return () => unsubChampions();
+  }, []);
 
   useEffect(() => {
     if (!isAuthReady) return;
@@ -1164,6 +1181,38 @@ function LeagueApp() {
     }
   };
 
+  const saveChampion = async () => {
+    if (!newChampion.season || !newChampion.winner) return showToast('Season and winner are required', 'error');
+    try {
+      const ref = doc(db, 'config', 'champions');
+      let updated: Champion[];
+      if (editingChampion !== null) {
+        updated = [...champions];
+        updated[editingChampion] = newChampion;
+      } else {
+        updated = [...champions, newChampion];
+      }
+      await setDoc(ref, { list: updated }, { merge: true });
+      setNewChampion({ season: '', winner: '', runnerUp: '', year: '' });
+      setEditingChampion(null);
+      showToast(editingChampion !== null ? 'Champion updated!' : 'Champion added!');
+    } catch (err) {
+      console.error("Failed to save champion", err);
+      showToast('Failed to save champion', 'error');
+    }
+  };
+
+  const removeChampion = async (index: number) => {
+    try {
+      const ref = doc(db, 'config', 'champions');
+      const updated = champions.filter((_, i) => i !== index);
+      await setDoc(ref, { list: updated }, { merge: true });
+      showToast('Champion removed');
+    } catch (err) {
+      showToast('Failed to remove champion', 'error');
+    }
+  };
+
   const addAdminEmail = async () => {
     const email = newAdminEmail.toLowerCase().trim();
     if (!email || !email.includes('@')) return showToast('Enter a valid email', 'error');
@@ -1546,6 +1595,15 @@ function LeagueApp() {
           <h1 className="font-display text-6xl md:text-8xl font-bold uppercase leading-[0.9] tracking-tight mb-4">
             SHATTA MOVEMENT <span className="text-pl-cyan">LEAGUE</span>
           </h1>
+          {champions.length > 0 && (
+            <div className="flex items-center justify-center gap-2 mb-4">
+              <Trophy className="text-yellow-400" size={16} />
+              <span className="text-[10px] font-condensed font-bold text-yellow-400 uppercase tracking-[0.3em]">
+                Reigning Champion: {champions[champions.length - 1].winner}
+              </span>
+              <Trophy className="text-yellow-400" size={16} />
+            </div>
+          )}
           
           <div className="flex justify-center max-w-md mx-auto glass rounded-lg divide-x divide-white/10 mt-8">
             <div className="flex-1 py-4">
@@ -1579,6 +1637,7 @@ function LeagueApp() {
             { id: 'players', icon: Users, label: 'Squad', public: true },
             { id: 'playoff', icon: Swords, label: 'Playoffs', public: true },
             { id: 'uefa', icon: Trophy, label: 'UEFA', public: true },
+            { id: 'halloffame', icon: Trophy, label: 'Hall of Fame', public: true },
             { id: 'admin', icon: ShieldCheck, label: 'Admin', public: false },
           ].filter(t => isAdmin || t.public).map((tab) => (
             <button
@@ -2830,6 +2889,122 @@ function LeagueApp() {
             </motion.div>
           )}
         </AnimatePresence>
+        {activeTab === 'halloffame' && (
+          <motion.div
+            key="halloffame"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="space-y-8 max-w-2xl mx-auto"
+          >
+            <div className="text-center">
+              <h2 className="font-display text-4xl uppercase tracking-wider mb-2">Hall of <span className="text-yellow-400">Fame</span></h2>
+              <p className="text-white/40 font-condensed uppercase tracking-widest text-xs">Tournament Champions</p>
+            </div>
+
+            {isAdmin && (
+              <div className="glass p-6 rounded-2xl border-l-4 border-yellow-400">
+                <h3 className="font-condensed font-bold text-xs uppercase tracking-widest text-yellow-400 mb-4">
+                  {editingChampion !== null ? 'Edit Champion' : 'Add Champion'}
+                </h3>
+                <div className="grid grid-cols-2 gap-3 mb-4">
+                  <input
+                    type="text"
+                    value={newChampion.season}
+                    onChange={(e) => setNewChampion({ ...newChampion, season: e.target.value })}
+                    placeholder="Season (e.g. Season 1)"
+                    className="bg-pl-ink border border-white/10 rounded-xl px-4 py-3 text-xs focus:border-yellow-400 outline-none transition-colors"
+                  />
+                  <input
+                    type="text"
+                    value={newChampion.year || ''}
+                    onChange={(e) => setNewChampion({ ...newChampion, year: e.target.value })}
+                    placeholder="Year (e.g. 2026)"
+                    className="bg-pl-ink border border-white/10 rounded-xl px-4 py-3 text-xs focus:border-yellow-400 outline-none transition-colors"
+                  />
+                  <input
+                    type="text"
+                    value={newChampion.winner}
+                    onChange={(e) => setNewChampion({ ...newChampion, winner: e.target.value })}
+                    placeholder="Winner name"
+                    className="bg-pl-ink border border-white/10 rounded-xl px-4 py-3 text-xs focus:border-yellow-400 outline-none transition-colors"
+                  />
+                  <input
+                    type="text"
+                    value={newChampion.runnerUp || ''}
+                    onChange={(e) => setNewChampion({ ...newChampion, runnerUp: e.target.value })}
+                    placeholder="Runner-up (optional)"
+                    className="bg-pl-ink border border-white/10 rounded-xl px-4 py-3 text-xs focus:border-yellow-400 outline-none transition-colors"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={saveChampion}
+                    className="bg-yellow-400 text-pl-ink px-5 py-2 rounded-xl font-condensed font-bold text-[10px] uppercase tracking-widest hover:brightness-110 transition-all"
+                  >
+                    {editingChampion !== null ? 'Update' : 'Add Champion'}
+                  </button>
+                  {editingChampion !== null && (
+                    <button
+                      onClick={() => { setEditingChampion(null); setNewChampion({ season: '', winner: '', runnerUp: '', year: '' }); }}
+                      className="bg-white/10 text-white/60 px-5 py-2 rounded-xl font-condensed font-bold text-[10px] uppercase tracking-widest hover:bg-white/20 transition-all"
+                    >
+                      Cancel
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-4">
+              {champions.length === 0 ? (
+                <div className="text-center py-16 glass rounded-xl">
+                  <Trophy className="mx-auto text-white/10 mb-4" size={48} />
+                  <p className="text-white/40 font-condensed tracking-widest uppercase text-xs">No champions recorded yet</p>
+                </div>
+              ) : (
+                [...champions].reverse().map((c, i) => {
+                  const actualIndex = champions.length - 1 - i;
+                  const isLatest = i === 0;
+                  return (
+                    <div key={actualIndex} className={`glass rounded-xl p-6 flex items-center gap-6 ${isLatest ? 'border-2 border-yellow-400/30 bg-yellow-400/5' : 'border border-white/5'}`}>
+                      <div className={`w-14 h-14 rounded-xl flex items-center justify-center ${isLatest ? 'bg-yellow-400/20' : 'bg-white/5'}`}>
+                        <Trophy className={isLatest ? 'text-yellow-400' : 'text-white/20'} size={28} />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-display text-xl uppercase tracking-wider">{c.winner}</span>
+                          {isLatest && <span className="bg-yellow-400 text-pl-ink text-[8px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">Current</span>}
+                        </div>
+                        <div className="text-[10px] font-condensed text-white/40 uppercase tracking-widest mt-1">
+                          {c.season}{c.year ? ` • ${c.year}` : ''}
+                          {c.runnerUp ? ` • Runner-up: ${c.runnerUp}` : ''}
+                        </div>
+                      </div>
+                      {isAdmin && (
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => { setEditingChampion(actualIndex); setNewChampion(c); }}
+                            className="text-white/30 hover:text-yellow-400 transition-colors"
+                          >
+                            <Edit3 size={14} />
+                          </button>
+                          <button
+                            onClick={() => removeChampion(actualIndex)}
+                            className="text-white/30 hover:text-red-400 transition-colors"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </motion.div>
+        )}
+
         {activeTab === 'admin' && isAdmin && (
           <div className="space-y-12 pb-20">
             {/* Stats Overview */}
