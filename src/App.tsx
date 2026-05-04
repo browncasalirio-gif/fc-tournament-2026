@@ -1623,9 +1623,18 @@ function LeagueApp() {
             )}
           </div>
           
-          <h1 className="font-display text-6xl md:text-8xl font-bold uppercase leading-[0.9] tracking-tight mb-4">
+          <h1 className="font-display text-6xl md:text-8xl font-bold uppercase leading-[0.9] tracking-tight mb-2">
             SHATTA MOVEMENT <span className="text-pl-cyan">LEAGUE</span>
           </h1>
+          {seasons.find(s => s.id === currentSeasonId) && (() => {
+            const sName = seasons.find(s => s.id === currentSeasonId)!.name;
+            const displayName = /season/i.test(sName) ? sName : `Season ${sName}`;
+            return (
+              <div className="font-condensed text-base md:text-lg text-pl-cyan/70 uppercase tracking-[0.4em] mb-2">
+                {displayName}
+              </div>
+            );
+          })()}
           {champions.length > 0 && (
             <div className="relative my-6">
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-yellow-400/10 to-transparent rounded-2xl blur-xl" />
@@ -1654,7 +1663,7 @@ function LeagueApp() {
           
           <div className="flex justify-center max-w-md mx-auto glass rounded-lg divide-x divide-white/10 mt-8">
             <div className="flex-1 py-4">
-              <div className="font-display text-2xl text-pl-cyan leading-none">{players.length}</div>
+              <div className="font-display text-2xl text-pl-cyan leading-none">{uniquePlayers.length}</div>
               <div className="font-condensed text-[10px] text-white/40 tracking-widest uppercase mt-1">Players</div>
             </div>
             <div className="flex-1 py-4">
