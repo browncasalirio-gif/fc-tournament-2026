@@ -428,14 +428,7 @@ function LeagueApp() {
     }, (err) => handleFirestoreError(err, OperationType.LIST, 'fixtures'));
 
     const unsubAllPlayers = onSnapshot(collection(db, 'players'), (snapshot) => {
-      const all = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Player));
-      const seen = new Set<string>();
-      const deduped = all.filter(p => {
-        if (seen.has(p.name)) return false;
-        seen.add(p.name);
-        return true;
-      });
-      setAllPlayers(deduped);
+      setAllPlayers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Player)));
     }, (err) => handleFirestoreError(err, OperationType.LIST, 'players'));
 
     const unsubAllFixtures = onSnapshot(collection(db, 'fixtures'), (snapshot) => {
@@ -1433,15 +1426,33 @@ function LeagueApp() {
     showToast("Table copied to clipboard!");
   };
 
+  const uniquePlayers = useMemo(() => {
+    const seen = new Set<string>();
+    return allPlayers.filter(p => {
+      if (seen.has(p.name)) return false;
+      seen.add(p.name);
+      return true;
+    });
+  }, [allPlayers]);
+
+  const playerIdsByName = useMemo(() => {
+    const map: Record<string, string[]> = {};
+    allPlayers.forEach(p => {
+      if (!map[p.name]) map[p.name] = [];
+      map[p.name].push(p.id);
+    });
+    return map;
+  }, [allPlayers]);
+
   const tableData = useMemo<TableRow[]>(() => {
     const stats: Record<string, TableRow> = {};
     allPlayers.forEach(p => {
-      stats[p.id] = { 
-        id: p.id, 
-        name: p.name, 
+      stats[p.id] = {
+        id: p.id,
+        name: p.name,
         club: p.club,
         p: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, pts: 0,
-        form: [] 
+        form: []
       };
     });
 
@@ -1466,10 +1477,23 @@ function LeagueApp() {
       }
     });
 
-    return Object.values(stats).map(p => ({
+    // Merge stats for duplicate player names
+    const merged: Record<string, TableRow> = {};
+    Object.values(stats).forEach(row => {
+      if (merged[row.name]) {
+        const m = merged[row.name];
+        m.p += row.p; m.w += row.w; m.d += row.d; m.l += row.l;
+        m.gf += row.gf; m.ga += row.ga; m.pts += row.pts;
+        m.form = [...m.form, ...row.form];
+      } else {
+        merged[row.name] = { ...row };
+      }
+    });
+
+    return Object.values(merged).map(p => ({
       ...p,
       form: p.form.slice(0, 5)
-    })).sort((a, b) => 
+    })).sort((a, b) =>
       b.pts - a.pts || (b.gf - b.ga) - (a.gf - a.ga) || b.gf - a.gf || a.name.localeCompare(b.name)
     );
   }, [allPlayers, allFixtures, currentSeasonId]);
@@ -2207,7 +2231,7 @@ function LeagueApp() {
 
                 <div className={`${isAdmin ? 'md:col-span-2' : 'md:col-span-3'} space-y-4`}>
                   <div className="flex items-center justify-between mb-2">
-                    <h3 className="font-condensed font-bold text-xs uppercase tracking-widest text-white/40">Current Squad ({(isAdmin ? players : allPlayers).length})</h3>
+                    <h3 className="font-condensed font-bold text-xs uppercase tracking-widest text-white/40">Current Squad ({uniquePlayers.length})</h3>
                     {isAdmin && players.length > 0 && (
                       <button 
                         onClick={clearAllPlayers}
@@ -2218,7 +2242,7 @@ function LeagueApp() {
                     )}
                   </div>
                   <div className="grid sm:grid-cols-2 gap-4">
-                    {(isAdmin ? players : allPlayers).map((p, i) => (
+                    {uniquePlayers.sort((a, b) => a.name.localeCompare(b.name)).map((p, i) => (
                       <div 
                         key={p.id} 
                         onClick={() => {
@@ -3033,7 +3057,7 @@ function LeagueApp() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {[
                 { label: 'Total Users', value: allUsers.length, icon: Users, color: 'text-pl-cyan' },
-                { label: 'Total Players', value: allPlayers.length, icon: Trophy, color: 'text-pl-pink' },
+                { label: 'Total Players', value: uniquePlayers.length, icon: Trophy, color: 'text-pl-pink' },
                 { label: 'League Matches', value: fixtures.length, icon: Swords, color: 'text-pl-purple' },
                 { label: 'UEFA Matches', value: uefaFixtures.length, icon: ShieldCheck, color: 'text-emerald-400' },
               ].map((stat, i) => (
@@ -3119,7 +3143,7 @@ function LeagueApp() {
                 </div>
 
                 <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2 no-scrollbar">
-                  {allPlayers.sort((a, b) => a.name.localeCompare(b.name)).map((p) => (
+                  {uniquePlayers.sort((a, b) => a.name.localeCompare(b.name)).map((p) => (
                     <div 
                       key={p.id} 
                       onClick={() => {
