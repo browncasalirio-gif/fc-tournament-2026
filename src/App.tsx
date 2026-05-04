@@ -1596,33 +1596,6 @@ function LeagueApp() {
             </div>
           </div>
 
-          <div className="flex flex-col items-center gap-4">
-            <div className="flex items-center gap-2">
-              <span className="bg-pl-pink text-white px-3 py-1 text-[10px] font-condensed font-bold tracking-[0.2em] uppercase rounded-sm">
-                ⚽ SHATTA MOVEMENT
-              </span>
-              <span className="border border-white/20 text-white/60 px-3 py-1 text-[10px] font-condensed font-bold tracking-[0.2em] uppercase rounded-sm">
-                Season {seasons.find(s => s.id === currentSeasonId)?.name || '...'}
-              </span>
-            </div>
-            
-            {seasons.length > 1 && (
-              <div className="flex items-center gap-2 bg-white/5 p-1 rounded-lg border border-white/5">
-                {seasons.map(s => (
-                  <button
-                    key={s.id}
-                    onClick={() => setCurrentSeasonId(s.id)}
-                    className={`px-3 py-1 rounded-md text-[8px] font-bold uppercase tracking-widest transition-all ${
-                      currentSeasonId === s.id ? 'bg-pl-cyan text-pl-ink shadow-lg' : 'text-white/40 hover:text-white/60'
-                    }`}
-                  >
-                    {s.name}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-          
           <h1 className="font-display text-6xl md:text-8xl font-bold uppercase leading-[0.9] tracking-tight mb-2">
             SHATTA MOVEMENT <span className="text-pl-cyan">LEAGUE</span>
           </h1>
