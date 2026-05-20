@@ -94,7 +94,7 @@ type PreRegisteredPsn = {
   role: 'admin' | 'user';
 };
 
-type Tab = 'table' | 'fixtures' | 'players' | 'h2h' | 'rules' | 'uefa' | 'admin' | 'market' | 'news' | 'playoff' | 'halloffame';
+type Tab = 'table' | 'fixtures' | 'players' | 'h2h' | 'rules' | 'uefa' | 'admin' | 'market' | 'news' | 'playoff' | 'halloffame' | 'wc';
 
 type Champion = {
   season: string;
@@ -1666,6 +1666,7 @@ function LeagueApp() {
             { id: 'playoff', icon: Swords, label: 'Playoffs', public: true },
             { id: 'uefa', icon: Trophy, label: 'UEFA', public: true },
             { id: 'halloffame', icon: Trophy, label: 'Hall of Fame', public: true },
+            { id: 'wc', icon: Trophy, label: 'WC', public: true },
             { id: 'admin', icon: ShieldCheck, label: 'Admin', public: false },
           ].filter(t => isAdmin || t.public).map((tab) => (
             <button
@@ -3029,6 +3030,113 @@ function LeagueApp() {
                   );
                 })
               )}
+            </div>
+          </motion.div>
+        )}
+
+        {activeTab === 'wc' && (
+          <motion.div
+            key="wc"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="space-y-8 pb-20"
+          >
+            <div className="text-center mb-8">
+              <h2 className="font-display text-4xl md:text-5xl font-bold uppercase">
+                WORLD <span className="text-pl-cyan">CUP</span>
+              </h2>
+              <p className="text-white/40 font-condensed uppercase tracking-widest text-xs mt-2">Pick your nation. Represent your flag.</p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              {/* Group A */}
+              <div className="glass rounded-xl overflow-hidden border border-white/10">
+                <div className="bg-gradient-to-r from-red-500/20 to-red-500/5 px-4 py-3 border-b border-white/10">
+                  <h3 className="font-display text-lg font-bold uppercase tracking-wider">
+                    Group <span className="text-red-400">A</span>
+                  </h3>
+                </div>
+                <div className="divide-y divide-white/5">
+                  {[
+                    { flag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿', name: 'England' },
+                    { flag: '🇩🇪', name: 'Germany' },
+                    { flag: '🇬🇭', name: 'Ghana' },
+                    { flag: '🇲🇽', name: 'Mexico' },
+                  ].map((team) => (
+                    <div key={team.name} className="flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors">
+                      <span className="text-xl">{team.flag}</span>
+                      <span className="font-condensed font-bold text-[11px] uppercase tracking-wide text-white/90">{team.name}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Group B */}
+              <div className="glass rounded-xl overflow-hidden border border-white/10">
+                <div className="bg-gradient-to-r from-blue-500/20 to-blue-500/5 px-4 py-3 border-b border-white/10">
+                  <h3 className="font-display text-lg font-bold uppercase tracking-wider">
+                    Group <span className="text-blue-400">B</span>
+                  </h3>
+                </div>
+                <div className="divide-y divide-white/5">
+                  {[
+                    { flag: '🇫🇷', name: 'France' },
+                    { flag: '🇧🇷', name: 'Brazil' },
+                    { flag: '🇸🇳', name: 'Senegal' },
+                    { flag: '🇳🇱', name: 'Netherlands' },
+                  ].map((team) => (
+                    <div key={team.name} className="flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors">
+                      <span className="text-xl">{team.flag}</span>
+                      <span className="font-condensed font-bold text-[11px] uppercase tracking-wide text-white/90">{team.name}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Group C */}
+              <div className="glass rounded-xl overflow-hidden border border-white/10">
+                <div className="bg-gradient-to-r from-emerald-500/20 to-emerald-500/5 px-4 py-3 border-b border-white/10">
+                  <h3 className="font-display text-lg font-bold uppercase tracking-wider">
+                    Group <span className="text-emerald-400">C</span>
+                  </h3>
+                </div>
+                <div className="divide-y divide-white/5">
+                  {[
+                    { flag: '🇦🇷', name: 'Argentina' },
+                    { flag: '🇵🇹', name: 'Portugal' },
+                    { flag: '🇭🇷', name: 'Croatia' },
+                    { flag: '🇨🇮', name: 'Ivory Coast' },
+                  ].map((team) => (
+                    <div key={team.name} className="flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors">
+                      <span className="text-xl">{team.flag}</span>
+                      <span className="font-condensed font-bold text-[11px] uppercase tracking-wide text-white/90">{team.name}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Group D */}
+              <div className="glass rounded-xl overflow-hidden border border-white/10">
+                <div className="bg-gradient-to-r from-amber-500/20 to-amber-500/5 px-4 py-3 border-b border-white/10">
+                  <h3 className="font-display text-lg font-bold uppercase tracking-wider">
+                    Group <span className="text-amber-400">D</span>
+                  </h3>
+                </div>
+                <div className="divide-y divide-white/5">
+                  {[
+                    { flag: '🇯🇵', name: 'Japan' },
+                    { flag: '🇧🇪', name: 'Belgium' },
+                    { flag: '🇪🇸', name: 'Spain' },
+                    { flag: '🇺🇾', name: 'Uruguay' },
+                  ].map((team) => (
+                    <div key={team.name} className="flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors">
+                      <span className="text-xl">{team.flag}</span>
+                      <span className="font-condensed font-bold text-[11px] uppercase tracking-wide text-white/90">{team.name}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </motion.div>
         )}
