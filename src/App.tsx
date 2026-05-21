@@ -3177,7 +3177,7 @@ function LeagueApp() {
                 </div>
                 <div className="divide-y divide-white/5">
                   {[
-                    { flag: '🇯🇵', name: 'Japan' },
+                    { flag: '🇩🇰', name: 'Denmark' },
                     { flag: '🇵🇱', name: 'Poland' },
                     { flag: '🇪🇸', name: 'Spain' },
                     { flag: '🇺🇸', name: 'USA' },
