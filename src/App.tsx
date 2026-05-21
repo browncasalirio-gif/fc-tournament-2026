@@ -3134,8 +3134,8 @@ function LeagueApp() {
                 <div className="divide-y divide-white/5">
                   {[
                     { flag: '🇫🇷', name: 'France' },
-                    { flag: '🇧🇷', name: 'Brazil' },
-                    { flag: '🇸🇳', name: 'Senegal' },
+                    { flag: '🇮🇹', name: 'Italy' },
+                    { flag: '🇲🇦', name: 'Morocco' },
                     { flag: '🇳🇱', name: 'Netherlands' },
                   ].map((team) => (
                     <div key={team.name} className="flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors">
@@ -3158,7 +3158,7 @@ function LeagueApp() {
                     { flag: '🇦🇷', name: 'Argentina' },
                     { flag: '🇵🇹', name: 'Portugal' },
                     { flag: '🇭🇷', name: 'Croatia' },
-                    { flag: '🇨🇮', name: 'Ivory Coast' },
+                    { flag: '🇸🇪', name: 'Sweden' },
                   ].map((team) => (
                     <div key={team.name} className="flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors">
                       <span className="text-xl">{team.flag}</span>
@@ -3178,9 +3178,9 @@ function LeagueApp() {
                 <div className="divide-y divide-white/5">
                   {[
                     { flag: '🇯🇵', name: 'Japan' },
-                    { flag: '🇧🇪', name: 'Belgium' },
+                    { flag: '🇵🇱', name: 'Poland' },
                     { flag: '🇪🇸', name: 'Spain' },
-                    { flag: '🇺🇾', name: 'Uruguay' },
+                    { flag: '🇺🇸', name: 'USA' },
                   ].map((team) => (
                     <div key={team.name} className="flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors">
                       <span className="text-xl">{team.flag}</span>
