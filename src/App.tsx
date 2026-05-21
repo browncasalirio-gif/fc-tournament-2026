@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, Component, ErrorInfo, ReactNode } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback, Component, ErrorInfo, ReactNode } from 'react';
 // Version: 1.0.1 - Guest Sync Fix
 import { GoogleGenAI } from "@google/genai";
 import { 
@@ -10,6 +10,7 @@ import {
   Plus, 
   Trash2, 
   Edit3,
+  ChevronLeft,
   ChevronRight,
   CheckCircle2,
   AlertCircle,
@@ -198,6 +199,39 @@ function LeagueApp() {
   const [activeTab, setActiveTab] = useState<Tab>('table');
   const [players, setPlayers] = useState<Player[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Tab scroll indicators
+  const tabsRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const checkTabScroll = useCallback(() => {
+    const el = tabsRef.current;
+    if (!el) return;
+    setCanScrollLeft(el.scrollLeft > 5);
+    setCanScrollRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 5);
+  }, []);
+
+  useEffect(() => {
+    const el = tabsRef.current;
+    if (!el) return;
+    checkTabScroll();
+    // Re-check after a short delay to handle late renders
+    const timer = setTimeout(checkTabScroll, 300);
+    el.addEventListener('scroll', checkTabScroll);
+    window.addEventListener('resize', checkTabScroll);
+    return () => {
+      clearTimeout(timer);
+      el.removeEventListener('scroll', checkTabScroll);
+      window.removeEventListener('resize', checkTabScroll);
+    };
+  }, [checkTabScroll, activeTab]);
+
+  const scrollTabs = (dir: 'left' | 'right') => {
+    const el = tabsRef.current;
+    if (!el) return;
+    el.scrollBy({ left: dir === 'left' ? -200 : 200, behavior: 'smooth' });
+  };
   const [showModal, setShowModal] = useState(false);
   const [selectedFixture, setSelectedFixture] = useState<Fixture | null>(null);
   const [h2hPlayers, setH2hPlayers] = useState({ p1: '', p2: '' });
@@ -1655,33 +1689,51 @@ function LeagueApp() {
 
       {/* Navigation */}
       <nav className="sticky top-0 z-50 bg-pl-ink/95 backdrop-blur-xl border-b border-white/5">
-        <div className="max-w-5xl mx-auto px-4 flex overflow-x-auto no-scrollbar">
-          {[
-            { id: 'table', icon: Trophy, label: 'Table', public: true },
-            { id: 'fixtures', icon: Calendar, label: 'Fixtures', public: true },
-            { id: 'h2h', icon: Swords, label: 'H2H', public: true },
-            { id: 'market', icon: MessageSquare, label: 'Market', public: true },
-            { id: 'rules', icon: ShieldCheck, label: 'Rules', public: true },
-            { id: 'players', icon: Users, label: 'Squad', public: true },
-            { id: 'playoff', icon: Swords, label: 'Playoffs', public: true },
-            { id: 'uefa', icon: Trophy, label: 'UEFA', public: true },
-            { id: 'halloffame', icon: Trophy, label: 'Hall of Fame', public: true },
-            { id: 'wc', icon: Trophy, label: 'WC', public: true },
-            { id: 'admin', icon: ShieldCheck, label: 'Admin', public: false },
-          ].filter(t => isAdmin || t.public).map((tab) => (
+        <div className="relative max-w-5xl mx-auto">
+          {canScrollLeft && (
             <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as Tab)}
-              className={`flex items-center gap-2 px-6 py-4 font-condensed font-bold text-xs tracking-widest uppercase transition-all border-b-2 whitespace-nowrap ${
-                activeTab === tab.id 
-                  ? 'text-pl-cyan border-pl-cyan' 
-                  : 'text-white/40 border-transparent hover:text-white/70'
-              }`}
+              onClick={() => scrollTabs('left')}
+              className="absolute left-0 top-0 bottom-0 z-10 w-10 flex items-center justify-center bg-gradient-to-r from-pl-ink via-pl-ink/90 to-transparent"
             >
-              <tab.icon size={14} />
-              {tab.label}
+              <ChevronLeft size={18} className="text-pl-cyan" />
             </button>
-          ))}
+          )}
+          <div ref={tabsRef} className="px-4 flex overflow-x-auto no-scrollbar">
+            {[
+              { id: 'table', icon: Trophy, label: 'Table', public: true },
+              { id: 'fixtures', icon: Calendar, label: 'Fixtures', public: true },
+              { id: 'h2h', icon: Swords, label: 'H2H', public: true },
+              { id: 'market', icon: MessageSquare, label: 'Market', public: true },
+              { id: 'rules', icon: ShieldCheck, label: 'Rules', public: true },
+              { id: 'players', icon: Users, label: 'Squad', public: true },
+              { id: 'playoff', icon: Swords, label: 'Playoffs', public: true },
+              { id: 'uefa', icon: Trophy, label: 'UEFA', public: true },
+              { id: 'halloffame', icon: Trophy, label: 'Hall of Fame', public: true },
+              { id: 'wc', icon: Trophy, label: 'WC', public: true },
+              { id: 'admin', icon: ShieldCheck, label: 'Admin', public: false },
+            ].filter(t => isAdmin || t.public).map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as Tab)}
+                className={`flex items-center gap-2 px-6 py-4 font-condensed font-bold text-xs tracking-widest uppercase transition-all border-b-2 whitespace-nowrap ${
+                  activeTab === tab.id
+                    ? 'text-pl-cyan border-pl-cyan'
+                    : 'text-white/40 border-transparent hover:text-white/70'
+                }`}
+              >
+                <tab.icon size={14} />
+                {tab.label}
+              </button>
+            ))}
+          </div>
+          {canScrollRight && (
+            <button
+              onClick={() => scrollTabs('right')}
+              className="absolute right-0 top-0 bottom-0 z-10 w-10 flex items-center justify-center bg-gradient-to-l from-pl-ink via-pl-ink/90 to-transparent"
+            >
+              <ChevronRight size={18} className="text-pl-cyan" />
+            </button>
+          )}
         </div>
       </nav>
 
