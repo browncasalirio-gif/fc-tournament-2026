@@ -2586,58 +2586,93 @@ function LeagueApp() {
                     )}
                   </div>
 
-                  {soloPlayerData && soloPlayerData.matches.length > 0 && (
-                    <div className="space-y-4">
-                      <h3 className="font-condensed font-bold text-xs uppercase tracking-widest text-white/40">
-                        Recent Matches ({soloPlayerData.matches.length})
-                      </h3>
-                      <div className="grid gap-3">
-                        {soloPlayerData.matches.map(f => {
-                          const isHome = f.homeId === h2hSoloPlayer;
-                          const myGoals = isHome ? f.homeScore! : f.awayScore!;
-                          const oppGoals = isHome ? f.awayScore! : f.homeScore!;
-                          const opponent = isHome ? f.awayName : f.homeName;
+                  {soloPlayerData && soloPlayerData.matches.length > 0 && (() => {
+                    // Group matches by opponent
+                    const grouped: Record<string, { oppName: string; matches: typeof soloPlayerData.matches }> = {};
+                    soloPlayerData.matches.forEach(f => {
+                      const isHome = f.homeId === h2hSoloPlayer;
+                      const oppId = isHome ? f.awayId : f.homeId;
+                      const oppName = isHome ? f.awayName : f.homeName;
+                      if (!grouped[oppId]) grouped[oppId] = { oppName, matches: [] };
+                      grouped[oppId].matches.push(f);
+                    });
+                    // Sort groups: most recent match first
+                    const sortedGroups = Object.entries(grouped).sort((a, b) => b[1].matches[0].matchday - a[1].matches[0].matchday);
+                    const playerName = allPlayers.find(p => p.id === h2hSoloPlayer)?.name || '';
 
-                          let result = '';
-                          let resultColor = 'bg-white/5 text-white/20';
-                          if (myGoals > oppGoals) {
-                            result = 'W';
-                            resultColor = 'bg-green-500/20 text-green-400 border border-green-500/30';
-                          } else if (myGoals < oppGoals) {
-                            result = 'L';
-                            resultColor = 'bg-red-500/20 text-red-400 border border-red-500/30';
-                          } else {
-                            result = 'D';
-                            resultColor = 'bg-white/10 text-white/60 border border-white/20';
-                          }
+                    return (
+                      <div className="space-y-6">
+                        <h3 className="font-condensed font-bold text-xs uppercase tracking-widest text-white/40">
+                          Matches by Opponent ({soloPlayerData.matches.length} total)
+                        </h3>
+                        {sortedGroups.map(([oppId, group]) => {
+                          const homeLeg = group.matches.find(f => f.homeId === h2hSoloPlayer);
+                          const awayLeg = group.matches.find(f => f.awayId === h2hSoloPlayer);
 
                           return (
-                            <div key={f.id} className="glass rounded-lg p-4 flex flex-col gap-2 group hover:bg-white/5 transition-colors">
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3 flex-1">
-                                  <div className={`w-7 h-7 rounded flex items-center justify-center text-[10px] font-bold ${resultColor}`}>
-                                    {result}
-                                  </div>
-                                  <div className={`font-bold text-sm ${isHome ? 'text-pl-cyan' : ''}`}>{f.homeName}</div>
-                                </div>
-
-                                <div className="flex items-center gap-4 px-6 bg-pl-ink/30 py-1 rounded-full">
-                                  <div className="font-display text-xl w-6 text-center">{f.homeScore}</div>
-                                  <div className="text-white/10 font-condensed text-[8px] uppercase tracking-widest">VS</div>
-                                  <div className="font-display text-xl w-6 text-center">{f.awayScore}</div>
-                                </div>
-
-                                <div className={`flex-1 text-right font-bold text-sm ${!isHome ? 'text-pl-cyan' : ''}`}>{f.awayName}</div>
+                            <div key={oppId} className="glass rounded-xl overflow-hidden border border-white/10">
+                              <div className="bg-white/5 px-4 py-3 border-b border-white/10">
+                                <h4 className="font-condensed font-bold text-sm uppercase tracking-wider">
+                                  <span className="text-pl-cyan">{playerName}</span>
+                                  <span className="text-white/30 mx-2">vs</span>
+                                  <span className="text-pl-pink">{group.oppName}</span>
+                                </h4>
                               </div>
-                              <div className="text-[10px] font-condensed text-white/30 uppercase tracking-widest text-center">
-                                Matchday {f.matchday}
+                              <div className="divide-y divide-white/5">
+                                {/* Header row */}
+                                <div className="grid grid-cols-3 px-4 py-2 text-[9px] font-condensed text-white/30 uppercase tracking-widest">
+                                  <div>Home</div>
+                                  <div className="text-center">Score</div>
+                                  <div className="text-right">Away</div>
+                                </div>
+                                {/* Home leg: selected player at home */}
+                                {homeLeg && (() => {
+                                  const myG = homeLeg.homeScore!;
+                                  const oppG = homeLeg.awayScore!;
+                                  const res = myG > oppG ? 'W' : myG < oppG ? 'L' : 'D';
+                                  const resColor = res === 'W' ? 'text-green-400' : res === 'L' ? 'text-red-400' : 'text-white/60';
+                                  return (
+                                    <div className="grid grid-cols-3 items-center px-4 py-3 hover:bg-white/5 transition-colors">
+                                      <div className="font-bold text-sm text-pl-cyan">{playerName}</div>
+                                      <div className="flex items-center justify-center gap-3">
+                                        <span className={`font-display text-xl ${resColor}`}>{homeLeg.homeScore}</span>
+                                        <span className="text-white/20 text-[8px] font-condensed uppercase">vs</span>
+                                        <span className="font-display text-xl text-white/50">{homeLeg.awayScore}</span>
+                                      </div>
+                                      <div className="text-right font-bold text-sm text-white/60">{group.oppName}</div>
+                                    </div>
+                                  );
+                                })()}
+                                {/* Away leg: selected player away */}
+                                {awayLeg && (() => {
+                                  const myG = awayLeg.awayScore!;
+                                  const oppG = awayLeg.homeScore!;
+                                  const res = myG > oppG ? 'W' : myG < oppG ? 'L' : 'D';
+                                  const resColor = res === 'W' ? 'text-green-400' : res === 'L' ? 'text-red-400' : 'text-white/60';
+                                  return (
+                                    <div className="grid grid-cols-3 items-center px-4 py-3 hover:bg-white/5 transition-colors">
+                                      <div className="font-bold text-sm text-white/60">{group.oppName}</div>
+                                      <div className="flex items-center justify-center gap-3">
+                                        <span className="font-display text-xl text-white/50">{awayLeg.homeScore}</span>
+                                        <span className="text-white/20 text-[8px] font-condensed uppercase">vs</span>
+                                        <span className={`font-display text-xl ${resColor}`}>{awayLeg.awayScore}</span>
+                                      </div>
+                                      <div className="text-right font-bold text-sm text-pl-cyan">{playerName}</div>
+                                    </div>
+                                  );
+                                })()}
+                                {!homeLeg && !awayLeg && (
+                                  <div className="px-4 py-3 text-white/20 text-xs font-condensed uppercase tracking-widest text-center">
+                                    No matches played yet
+                                  </div>
+                                )}
                               </div>
                             </div>
                           );
                         })}
                       </div>
-                    </div>
-                  )}
+                    );
+                  })()}
 
                   {soloPlayerData && soloPlayerData.matches.length === 0 && (
                     <div className="text-center text-white/20 font-condensed uppercase tracking-widest text-sm py-8">
