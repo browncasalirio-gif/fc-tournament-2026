@@ -366,7 +366,8 @@ function LeagueApp() {
     const matches = allFixtures.filter(f =>
       (pIds.has(f.homeId) || pIds.has(f.awayId)) &&
       f.seasonId === currentSeasonId &&
-      f.status === 'played'
+      f.status === 'played' &&
+      f.competition === 'league'
     );
     // Sort most recent first (highest matchday first)
     const sorted = [...matches].sort((a, b) => b.matchday - a.matchday);
