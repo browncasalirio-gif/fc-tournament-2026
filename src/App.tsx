@@ -2612,22 +2612,25 @@ function LeagueApp() {
                           }
 
                           return (
-                            <div key={f.id} className="glass rounded-lg p-4 flex items-center justify-between group hover:bg-white/5 transition-colors">
-                              <div className="flex items-center gap-3">
-                                <div className={`w-7 h-7 rounded flex items-center justify-center text-[10px] font-bold ${resultColor}`}>
-                                  {result}
-                                </div>
-                                <div>
-                                  <div className="font-bold text-sm">vs {opponent}</div>
-                                  <div className="text-[10px] font-condensed text-white/30 uppercase tracking-widest">
-                                    MD {f.matchday} • {isHome ? 'Home' : 'Away'}
+                            <div key={f.id} className="glass rounded-lg p-4 flex flex-col gap-2 group hover:bg-white/5 transition-colors">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3 flex-1">
+                                  <div className={`w-7 h-7 rounded flex items-center justify-center text-[10px] font-bold ${resultColor}`}>
+                                    {result}
                                   </div>
+                                  <div className={`font-bold text-sm ${isHome ? 'text-pl-cyan' : ''}`}>{f.homeName}</div>
                                 </div>
+
+                                <div className="flex items-center gap-4 px-6 bg-pl-ink/30 py-1 rounded-full">
+                                  <div className="font-display text-xl w-6 text-center">{f.homeScore}</div>
+                                  <div className="text-white/10 font-condensed text-[8px] uppercase tracking-widest">VS</div>
+                                  <div className="font-display text-xl w-6 text-center">{f.awayScore}</div>
+                                </div>
+
+                                <div className={`flex-1 text-right font-bold text-sm ${!isHome ? 'text-pl-cyan' : ''}`}>{f.awayName}</div>
                               </div>
-                              <div className="flex items-center gap-2">
-                                <span className="font-display text-xl">{myGoals}</span>
-                                <span className="text-white/20 text-xs">-</span>
-                                <span className="font-display text-xl text-white/60">{oppGoals}</span>
+                              <div className="text-[10px] font-condensed text-white/30 uppercase tracking-widest text-center">
+                                Matchday {f.matchday}
                               </div>
                             </div>
                           );
