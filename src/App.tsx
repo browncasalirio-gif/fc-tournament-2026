@@ -316,17 +316,32 @@ function LeagueApp() {
     });
   };
 
+  const playerIdsByName = useMemo(() => {
+    const map: Record<string, string[]> = {};
+    allPlayers.forEach(p => {
+      if (!map[p.name]) map[p.name] = [];
+      map[p.name].push(p.id);
+    });
+    return map;
+  }, [allPlayers]);
+
   const h2hData = useMemo(() => {
     if (!h2hPlayers.p1 || !h2hPlayers.p2 || h2hPlayers.p1 === h2hPlayers.p2) return null;
-    const matches = allFixtures.filter(f => 
-      ((f.homeId === h2hPlayers.p1 && f.awayId === h2hPlayers.p2) ||
-       (f.homeId === h2hPlayers.p2 && f.awayId === h2hPlayers.p1)) &&
+    // Get all IDs for each player name to handle duplicates
+    const p1Name = allPlayers.find(p => p.id === h2hPlayers.p1)?.name;
+    const p2Name = allPlayers.find(p => p.id === h2hPlayers.p2)?.name;
+    if (!p1Name || !p2Name) return null;
+    const p1Ids = new Set(playerIdsByName[p1Name] || [h2hPlayers.p1]);
+    const p2Ids = new Set(playerIdsByName[p2Name] || [h2hPlayers.p2]);
+    const matches = allFixtures.filter(f =>
+      ((p1Ids.has(f.homeId) && p2Ids.has(f.awayId)) ||
+       (p2Ids.has(f.homeId) && p1Ids.has(f.awayId))) &&
       f.seasonId === currentSeasonId
     );
     const played = matches.filter(f => f.status === 'played');
     let p1w = 0, p2w = 0, draws = 0, p1g = 0, p2g = 0;
     played.forEach(f => {
-      const isP1Home = f.homeId === h2hPlayers.p1;
+      const isP1Home = p1Ids.has(f.homeId);
       const p1Goals = isP1Home ? f.homeScore! : f.awayScore!;
       const p2Goals = isP1Home ? f.awayScore! : f.homeScore!;
       p1g += p1Goals;
@@ -339,13 +354,17 @@ function LeagueApp() {
       if (a.matchday !== b.matchday) return a.matchday - b.matchday;
       return (a.deadline || '').localeCompare(b.deadline || '');
     });
-    return { matches: sortedMatches, p1w, p2w, draws, p1g, p2g };
-  }, [h2hPlayers, allFixtures, currentSeasonId]);
+    return { matches: sortedMatches, p1w, p2w, draws, p1g, p2g, p1Ids, p2Ids };
+  }, [h2hPlayers, allFixtures, currentSeasonId, allPlayers, playerIdsByName]);
 
   const soloPlayerData = useMemo(() => {
     if (!h2hSoloPlayer) return null;
+    // Get all IDs for this player name to handle duplicates
+    const pName = allPlayers.find(p => p.id === h2hSoloPlayer)?.name;
+    if (!pName) return null;
+    const pIds = new Set(playerIdsByName[pName] || [h2hSoloPlayer]);
     const matches = allFixtures.filter(f =>
-      (f.homeId === h2hSoloPlayer || f.awayId === h2hSoloPlayer) &&
+      (pIds.has(f.homeId) || pIds.has(f.awayId)) &&
       f.seasonId === currentSeasonId &&
       f.status === 'played'
     );
@@ -353,7 +372,7 @@ function LeagueApp() {
     const sorted = [...matches].sort((a, b) => b.matchday - a.matchday);
     let wins = 0, losses = 0, draws = 0, gf = 0, ga = 0;
     sorted.forEach(f => {
-      const isHome = f.homeId === h2hSoloPlayer;
+      const isHome = pIds.has(f.homeId);
       const myGoals = isHome ? f.homeScore! : f.awayScore!;
       const oppGoals = isHome ? f.awayScore! : f.homeScore!;
       gf += myGoals;
@@ -362,7 +381,7 @@ function LeagueApp() {
       else if (myGoals < oppGoals) losses++;
       else draws++;
     });
-    return { matches: sorted, wins, losses, draws, gf, ga, played: sorted.length };
+    return { matches: sorted, wins, losses, draws, gf, ga, played: sorted.length, pIds };
   }, [h2hSoloPlayer, allFixtures, currentSeasonId]);
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
@@ -1494,14 +1513,7 @@ function LeagueApp() {
     });
   }, [allPlayers]);
 
-  const playerIdsByName = useMemo(() => {
-    const map: Record<string, string[]> = {};
-    allPlayers.forEach(p => {
-      if (!map[p.name]) map[p.name] = [];
-      map[p.name].push(p.id);
-    });
-    return map;
-  }, [allPlayers]);
+
 
   const tableData = useMemo<TableRow[]>(() => {
     const stats: Record<string, TableRow> = {};
@@ -2453,7 +2465,7 @@ function LeagueApp() {
                   <h3 className="font-condensed font-bold text-xs uppercase tracking-widest text-white/40">Match History</h3>
                   <div className="grid gap-3">
                     {h2hData.matches.map(f => {
-                      const isP1Home = f.homeId === h2hPlayers.p1;
+                      const isP1Home = h2hData.p1Ids.has(f.homeId);
                       const p1Goals = isP1Home ? f.homeScore : f.awayScore;
                       const p2Goals = isP1Home ? f.awayScore : f.homeScore;
                       
@@ -2587,14 +2599,14 @@ function LeagueApp() {
                   </div>
 
                   {soloPlayerData && soloPlayerData.matches.length > 0 && (() => {
-                    // Group matches by opponent
+                    // Group matches by opponent name (handles duplicate player IDs)
+                    const { pIds } = soloPlayerData;
                     const grouped: Record<string, { oppName: string; matches: typeof soloPlayerData.matches }> = {};
                     soloPlayerData.matches.forEach(f => {
-                      const isHome = f.homeId === h2hSoloPlayer;
-                      const oppId = isHome ? f.awayId : f.homeId;
+                      const isHome = pIds.has(f.homeId);
                       const oppName = isHome ? f.awayName : f.homeName;
-                      if (!grouped[oppId]) grouped[oppId] = { oppName, matches: [] };
-                      grouped[oppId].matches.push(f);
+                      if (!grouped[oppName]) grouped[oppName] = { oppName, matches: [] };
+                      grouped[oppName].matches.push(f);
                     });
                     // Sort groups: most recent match first
                     const sortedGroups = Object.entries(grouped).sort((a, b) => b[1].matches[0].matchday - a[1].matches[0].matchday);
@@ -2606,8 +2618,8 @@ function LeagueApp() {
                           Matches by Opponent ({soloPlayerData.matches.length} total)
                         </h3>
                         {sortedGroups.map(([oppId, group]) => {
-                          const homeLeg = group.matches.find(f => f.homeId === h2hSoloPlayer);
-                          const awayLeg = group.matches.find(f => f.awayId === h2hSoloPlayer);
+                          const homeLeg = group.matches.find(f => pIds.has(f.homeId));
+                          const awayLeg = group.matches.find(f => pIds.has(f.awayId));
 
                           return (
                             <div key={oppId} className="glass rounded-xl overflow-hidden border border-white/10">
