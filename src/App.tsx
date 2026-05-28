@@ -262,6 +262,8 @@ function LeagueApp() {
   const [bulkResultsText, setBulkResultsText] = useState('');
   const [h2hEditingFixture, setH2hEditingFixture] = useState<string | null>(null);
   const [h2hScores, setH2hScores] = useState<{ home: number; away: number }>({ home: 0, away: 0 });
+  const [h2hMode, setH2hMode] = useState<'versus' | 'all'>('versus');
+  const [h2hSoloPlayer, setH2hSoloPlayer] = useState('');
   const [playoffEditingFixture, setPlayoffEditingFixture] = useState<string | null>(null);
   const [playoffScores, setPlayoffScores] = useState<{ home: number; away: number }>({ home: 0, away: 0 });
   const [pin, setPin] = useState('');
@@ -339,6 +341,29 @@ function LeagueApp() {
     });
     return { matches: sortedMatches, p1w, p2w, draws, p1g, p2g };
   }, [h2hPlayers, allFixtures, currentSeasonId]);
+
+  const soloPlayerData = useMemo(() => {
+    if (!h2hSoloPlayer) return null;
+    const matches = allFixtures.filter(f =>
+      (f.homeId === h2hSoloPlayer || f.awayId === h2hSoloPlayer) &&
+      f.seasonId === currentSeasonId &&
+      f.status === 'played'
+    );
+    // Sort most recent first (highest matchday first)
+    const sorted = [...matches].sort((a, b) => b.matchday - a.matchday);
+    let wins = 0, losses = 0, draws = 0, gf = 0, ga = 0;
+    sorted.forEach(f => {
+      const isHome = f.homeId === h2hSoloPlayer;
+      const myGoals = isHome ? f.homeScore! : f.awayScore!;
+      const oppGoals = isHome ? f.awayScore! : f.homeScore!;
+      gf += myGoals;
+      ga += oppGoals;
+      if (myGoals > oppGoals) wins++;
+      else if (myGoals < oppGoals) losses++;
+      else draws++;
+    });
+    return { matches: sorted, wins, losses, draws, gf, ga, played: sorted.length };
+  }, [h2hSoloPlayer, allFixtures, currentSeasonId]);
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToast({ message, type });
@@ -2351,12 +2376,34 @@ function LeagueApp() {
                 </h2>
               </div>
 
+              {/* Mode Toggle */}
+              <div className="flex items-center gap-1 bg-white/5 p-1 rounded-lg border border-white/5 max-w-xs">
+                <button
+                  onClick={() => setH2hMode('versus')}
+                  className={`flex-1 px-4 py-2 rounded-md text-[10px] font-bold uppercase tracking-widest transition-all ${
+                    h2hMode === 'versus' ? 'bg-pl-cyan text-pl-ink shadow-lg' : 'text-white/40 hover:text-white/60'
+                  }`}
+                >
+                  1 vs 1
+                </button>
+                <button
+                  onClick={() => setH2hMode('all')}
+                  className={`flex-1 px-4 py-2 rounded-md text-[10px] font-bold uppercase tracking-widest transition-all ${
+                    h2hMode === 'all' ? 'bg-pl-cyan text-pl-ink shadow-lg' : 'text-white/40 hover:text-white/60'
+                  }`}
+                >
+                  All Matches
+                </button>
+              </div>
+
+              {h2hMode === 'versus' ? (
+                <>
               <div className="glass rounded-xl p-6">
                 <div className="grid md:grid-cols-2 gap-8 items-center">
                   <div className="space-y-4">
                     <label className="block text-[10px] font-condensed text-white/40 uppercase tracking-widest">Select Players</label>
                     <div className="flex items-center gap-4">
-                      <select 
+                      <select
                         value={h2hPlayers.p1}
                         onChange={(e) => setH2hPlayers({ ...h2hPlayers, p1: e.target.value })}
                         className="flex-1 bg-pl-ink border border-white/10 rounded px-4 py-3 text-sm focus:border-pl-cyan outline-none transition-colors"
@@ -2365,7 +2412,7 @@ function LeagueApp() {
                         {[...allPlayers].filter((p, i, arr) => arr.findIndex(x => x.name === p.name) === i).sort((a, b) => a.name.localeCompare(b.name)).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                       </select>
                       <div className="font-display text-xl text-white/20">VS</div>
-                      <select 
+                      <select
                         value={h2hPlayers.p2}
                         onChange={(e) => setH2hPlayers({ ...h2hPlayers, p2: e.target.value })}
                         className="flex-1 bg-pl-ink border border-white/10 rounded px-4 py-3 text-sm focus:border-pl-cyan outline-none transition-colors"
@@ -2495,6 +2542,106 @@ function LeagueApp() {
                     })}
                   </div>
                 </div>
+              )}
+                </>
+              ) : (
+                /* All Matches Mode */
+                <>
+                  <div className="glass rounded-xl p-6">
+                    <div className="space-y-4">
+                      <label className="block text-[10px] font-condensed text-white/40 uppercase tracking-widest">Select Player</label>
+                      <select
+                        value={h2hSoloPlayer}
+                        onChange={(e) => setH2hSoloPlayer(e.target.value)}
+                        className="w-full bg-pl-ink border border-white/10 rounded px-4 py-3 text-sm focus:border-pl-cyan outline-none transition-colors"
+                      >
+                        <option value="">Choose a player...</option>
+                        {[...allPlayers].filter((p, i, arr) => arr.findIndex(x => x.name === p.name) === i).sort((a, b) => a.name.localeCompare(b.name)).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                      </select>
+                    </div>
+
+                    {soloPlayerData && (
+                      <div className="flex items-center justify-around bg-pl-ink/50 p-6 rounded-lg border border-white/5 mt-6">
+                        <div className="text-center">
+                          <div className="font-display text-3xl text-pl-cyan">{soloPlayerData.played}</div>
+                          <div className="text-[10px] font-condensed text-white/40 uppercase tracking-widest mt-1">Played</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="font-display text-3xl text-green-400">{soloPlayerData.wins}</div>
+                          <div className="text-[10px] font-condensed text-white/40 uppercase tracking-widest mt-1">Wins</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="font-display text-3xl text-white/40">{soloPlayerData.draws}</div>
+                          <div className="text-[10px] font-condensed text-white/40 uppercase tracking-widest mt-1">Draws</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="font-display text-3xl text-red-400">{soloPlayerData.losses}</div>
+                          <div className="text-[10px] font-condensed text-white/40 uppercase tracking-widest mt-1">Losses</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="font-display text-3xl text-pl-cyan">{soloPlayerData.gf}-{soloPlayerData.ga}</div>
+                          <div className="text-[10px] font-condensed text-white/40 uppercase tracking-widest mt-1">GF-GA</div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {soloPlayerData && soloPlayerData.matches.length > 0 && (
+                    <div className="space-y-4">
+                      <h3 className="font-condensed font-bold text-xs uppercase tracking-widest text-white/40">
+                        Recent Matches ({soloPlayerData.matches.length})
+                      </h3>
+                      <div className="grid gap-3">
+                        {soloPlayerData.matches.map(f => {
+                          const isHome = f.homeId === h2hSoloPlayer;
+                          const myGoals = isHome ? f.homeScore! : f.awayScore!;
+                          const oppGoals = isHome ? f.awayScore! : f.homeScore!;
+                          const opponent = isHome ? f.awayName : f.homeName;
+
+                          let result = '';
+                          let resultColor = 'bg-white/5 text-white/20';
+                          if (myGoals > oppGoals) {
+                            result = 'W';
+                            resultColor = 'bg-green-500/20 text-green-400 border border-green-500/30';
+                          } else if (myGoals < oppGoals) {
+                            result = 'L';
+                            resultColor = 'bg-red-500/20 text-red-400 border border-red-500/30';
+                          } else {
+                            result = 'D';
+                            resultColor = 'bg-white/10 text-white/60 border border-white/20';
+                          }
+
+                          return (
+                            <div key={f.id} className="glass rounded-lg p-4 flex items-center justify-between group hover:bg-white/5 transition-colors">
+                              <div className="flex items-center gap-3">
+                                <div className={`w-7 h-7 rounded flex items-center justify-center text-[10px] font-bold ${resultColor}`}>
+                                  {result}
+                                </div>
+                                <div>
+                                  <div className="font-bold text-sm">vs {opponent}</div>
+                                  <div className="text-[10px] font-condensed text-white/30 uppercase tracking-widest">
+                                    MD {f.matchday} • {isHome ? 'Home' : 'Away'}
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="font-display text-xl">{myGoals}</span>
+                                <span className="text-white/20 text-xs">-</span>
+                                <span className="font-display text-xl text-white/60">{oppGoals}</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {soloPlayerData && soloPlayerData.matches.length === 0 && (
+                    <div className="text-center text-white/20 font-condensed uppercase tracking-widest text-sm py-8">
+                      No played matches found for this player
+                    </div>
+                  )}
+                </>
               )}
             </motion.div>
           )}
