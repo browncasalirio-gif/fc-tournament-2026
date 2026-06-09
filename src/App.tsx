@@ -814,7 +814,8 @@ function LeagueApp() {
       (f.homeId === p2Id && f.awayId === p1Id)
     );
     if (round) legs = legs.filter(f => f.round === round);
-    if (legs.length < 2 || legs.some(l => l.status !== 'played')) return null;
+    const requiredLegs = round === 'F' ? 1 : 2;
+    if (legs.length < requiredLegs || legs.some(l => l.status !== 'played')) return null;
     let p1Goals = 0, p2Goals = 0;
     legs.forEach(f => {
       if (f.homeId === p1Id) { p1Goals += f.homeScore || 0; p2Goals += f.awayScore || 0; }
@@ -985,13 +986,13 @@ function LeagueApp() {
 
       const today = new Date();
       const deadline1 = new Date(today); deadline1.setDate(today.getDate() + 7);
-      const deadline2 = new Date(today); deadline2.setDate(today.getDate() + 14);
 
       const getName = (id: string) => {
         const p = allPlayers.find(pl => pl.id === id);
         return p?.name || tableData.find(t => t.id === id)?.name || id;
       };
 
+      // Single match final
       const ref1 = doc(collection(db, 'fixtures'));
       batch.set(ref1, {
         matchday: 1, homeId: fw1, awayId: fw2,
@@ -1000,17 +1001,9 @@ function LeagueApp() {
         deadline: deadline1.toISOString().split('T')[0],
         competition: 'playoff', round: 'F', ownerUid: user.uid, seasonId: currentSeasonId,
       });
-      const ref2 = doc(collection(db, 'fixtures'));
-      batch.set(ref2, {
-        matchday: 2, homeId: fw2, awayId: fw1,
-        homeName: getName(fw2), awayName: getName(fw1),
-        homeScore: null, awayScore: null, status: 'pending',
-        deadline: deadline2.toISOString().split('T')[0],
-        competition: 'playoff', round: 'F', ownerUid: user.uid, seasonId: currentSeasonId,
-      });
 
       await batch.commit();
-      showToast("Final fixtures generated! 🏆");
+      showToast("Final fixture generated! 🏆");
     } catch (err) {
       console.error("Final generation failed", err);
       showToast(err instanceof Error ? err.message : "Final generation failed", 'error');
@@ -3226,8 +3219,9 @@ function LeagueApp() {
                               else { p2Agg += f.homeScore || 0; p1Agg += f.awayScore || 0; }
                             }
                           });
-                          const bothPlayed = legs.length === 2 && legs.every(l => l.status === 'played');
-                          const winnerId = bothPlayed ? getPlayoffWinner(p1Id, p2Id, round) : null;
+                          const requiredLegs = round === 'F' ? 1 : 2;
+                          const allPlayed = legs.length >= requiredLegs && legs.every(l => l.status === 'played');
+                          const winnerId = allPlayed ? getPlayoffWinner(p1Id, p2Id, round) : null;
                           const winnerName = winnerId === p1Id ? p1Name : winnerId === p2Id ? p2Name : null;
 
                           return (
@@ -3244,7 +3238,7 @@ function LeagueApp() {
                                   </span>
                                   <span className="font-bold text-sm truncate max-w-[120px]">{p2Name}</span>
                                 </div>
-                                <div className="text-[10px] font-condensed text-white/30 uppercase tracking-widest mt-1">Aggregate</div>
+                                <div className="text-[10px] font-condensed text-white/30 uppercase tracking-widest mt-1">{round === 'F' ? 'Final' : 'Aggregate'}</div>
                                 {winnerName && (
                                   <div className={`mt-2 inline-block ${round === 'F' ? 'bg-yellow-400/20 text-yellow-400 border-yellow-400/30' : `bg-emerald-400/20 text-emerald-400 border-emerald-400/30`} text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full border`}>
                                     {round === 'F' ? `🏆 ${winnerName} wins!` : `${winnerName} advances`}
