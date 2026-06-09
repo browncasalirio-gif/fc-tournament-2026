@@ -277,13 +277,11 @@ function LeagueApp() {
   const [currentSeasonId, setCurrentSeasonId] = useState<string | null>(null);
   const [showSeasonModal, setShowSeasonModal] = useState(false);
   const [newSeasonName, setNewSeasonName] = useState('');
-  const [showPreseasonModal, setShowPreseasonModal] = useState(false);
   const [adminEmails, setAdminEmails] = useState<string[]>([]);
   const [newAdminEmail, setNewAdminEmail] = useState('');
   const [champions, setChampions] = useState<Champion[]>([]);
   const [editingChampion, setEditingChampion] = useState<number | null>(null);
   const [newChampion, setNewChampion] = useState<Champion>({ season: '', winner: '', runnerUp: '', year: '' });
-  const [preseasonFixture, setPreseasonFixture] = useState({ homeId: '', awayId: '' });
 
   const fixtures = useMemo(() => {
     return allFixtures.filter(f => f.competition === 'league' && f.seasonId === currentSeasonId);
@@ -293,16 +291,12 @@ function LeagueApp() {
     return allFixtures.filter(f => f.competition === 'uefa' && f.seasonId === currentSeasonId);
   }, [allFixtures, currentSeasonId]);
 
-  const preseasonFixtures = useMemo(() => {
-    return allFixtures.filter(f => f.competition === 'preseason' && f.seasonId === currentSeasonId);
-  }, [allFixtures, currentSeasonId]);
-
   const playoffFixtures = useMemo(() => {
     return allFixtures.filter(f => f.competition === 'playoff' && f.seasonId === currentSeasonId);
   }, [allFixtures, currentSeasonId]);
 
   const getPlayerForm = (playerId: string) => {
-    const playerFixtures = [...fixtures, ...uefaFixtures, ...preseasonFixtures]
+    const playerFixtures = [...fixtures, ...uefaFixtures]
       .filter(f => (f.homeId === playerId || f.awayId === playerId) && f.status === 'played')
       .sort((a, b) => {
         // Sort by matchday descending
@@ -610,33 +604,6 @@ function LeagueApp() {
     }
   };
 
-  const addPreseasonFixture = async () => {
-    if (!isAdmin || !preseasonFixture.homeId || !preseasonFixture.awayId || !currentSeasonId) return;
-    try {
-      const homePlayer = players.find(p => p.id === preseasonFixture.homeId)!;
-      const awayPlayer = players.find(p => p.id === preseasonFixture.awayId)!;
-      
-      await addDoc(collection(db, 'fixtures'), {
-        matchday: 0,
-        homeId: preseasonFixture.homeId,
-        awayId: preseasonFixture.awayId,
-        homeName: homePlayer.name,
-        awayName: awayPlayer.name,
-        homeScore: null,
-        awayScore: null,
-        status: 'pending',
-        deadline: new Date().toISOString().split('T')[0],
-        competition: 'preseason',
-        ownerUid: user!.uid,
-        seasonId: currentSeasonId
-      });
-      setShowPreseasonModal(false);
-      setPreseasonFixture({ homeId: '', awayId: '' });
-      showToast("Preseason match added!");
-    } catch (err) {
-      console.error("Add preseason failed", err);
-    }
-  };
 
   const TEAMS_POOL = [
     "Aston Villa", "Brighton & Hove Albion", "Brentford", "Burnley", "Crystal Palace",
@@ -1647,7 +1614,7 @@ function LeagueApp() {
 
   const tableData = useMemo<TableRow[]>(() => {
     const stats: Record<string, TableRow> = {};
-    allPlayers.forEach(p => {
+    allPlayers.filter(p => p.active !== false).forEach(p => {
       stats[p.id] = {
         id: p.id,
         name: p.name,
@@ -2233,13 +2200,7 @@ function LeagueApp() {
                 <div className="flex gap-2">
                   {isAdmin && (
                     <>
-                      <button 
-                        onClick={() => setShowPreseasonModal(true)}
-                        className="bg-pl-pink text-white px-4 py-2 rounded font-condensed font-bold text-xs uppercase tracking-widest hover:scale-105 transition-transform"
-                      >
-                        Add Preseason
-                      </button>
-                      <button 
+                      <button
                         onClick={generateSeason}
                         className="bg-pl-cyan text-pl-ink px-4 py-2 rounded font-condensed font-bold text-xs uppercase tracking-widest hover:scale-105 transition-transform"
                       >
@@ -2250,54 +2211,13 @@ function LeagueApp() {
                 </div>
               </div>
 
-              {fixtures.length === 0 && preseasonFixtures.length === 0 ? (
+              {fixtures.length === 0 ? (
                 <div className="text-center py-20 glass rounded-xl">
                   <Calendar className="mx-auto text-white/10 mb-4" size={48} />
                   <p className="text-white/40 font-condensed tracking-widest uppercase">No fixtures in this season</p>
                 </div>
               ) : (
                 <div className="space-y-12">
-                  {/* Preseason Section */}
-                  {preseasonFixtures.length > 0 && (
-                    <div className="space-y-6">
-                      <div className="flex items-center gap-4">
-                        <div className="h-px w-8 bg-pl-pink/30"></div>
-                        <h3 className="font-display text-lg uppercase tracking-widest text-pl-pink">Preseason Matches</h3>
-                        <div className="h-px flex-grow bg-pl-pink/30"></div>
-                      </div>
-                      <div className="grid gap-3">
-                        {preseasonFixtures.map(f => {
-                          const isMyMatch = players.some(p => p.id === f.homeId || p.id === f.awayId);
-                          return (
-                            <div 
-                              key={f.id}
-                              onClick={() => {
-                                setSelectedFixture(f);
-                                setScores({ home: f.homeScore || 0, away: f.awayScore || 0 });
-                                setShowModal(true);
-                              }}
-                              className={`glass transition-all rounded-lg p-4 flex items-center justify-between group border-l-4 cursor-pointer hover:bg-white/10 ${
-                                isMyMatch ? 'border-pl-pink bg-pl-pink/5' : 'border-transparent'
-                              }`}
-                            >
-                              <div className="flex-1 text-right font-bold pr-6 group-hover:text-pl-pink transition-colors">{f.homeName}</div>
-                              <div className="flex items-center gap-4 bg-pl-ink/50 px-6 py-2 rounded-full border border-white/5">
-                                <div className="font-display text-2xl w-8 text-center">
-                                  {f.status === 'played' ? f.homeScore : '-'}
-                                </div>
-                                <div className="text-white/20 font-condensed text-[10px] uppercase tracking-widest">VS</div>
-                                <div className="font-display text-2xl w-8 text-center">
-                                  {f.status === 'played' ? f.awayScore : '-'}
-                                </div>
-                              </div>
-                              <div className="flex-1 text-left font-bold pl-6 group-hover:text-pl-pink transition-colors">{f.awayName}</div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
                   {/* League Section */}
                   {Array.from(new Set(fixtures.map(f => f.matchday))).sort((a, b) => (a as number) - (b as number)).map(md => (
                     <div key={md} className="space-y-4">
@@ -3603,13 +3523,6 @@ function LeagueApp() {
                   <Swords className="text-pl-purple mb-3 group-hover:scale-110 transition-transform" size={24} />
                   <span className="font-condensed font-bold text-xs uppercase tracking-widest">Generate Playoffs</span>
                 </button>
-                <button 
-                  onClick={() => setShowPreseasonModal(true)}
-                  className="flex flex-col items-center justify-center p-6 glass rounded-xl hover:bg-pl-pink/10 transition-all group border border-white/5"
-                >
-                  <Plus className="text-pl-pink mb-3 group-hover:scale-110 transition-transform" size={24} />
-                  <span className="font-condensed font-bold text-xs uppercase tracking-widest">Add Preseason Match</span>
-                </button>
                 <button
                   onClick={endLeague}
                   className="flex flex-col items-center justify-center p-6 glass rounded-xl hover:bg-amber-500/10 transition-all group border border-white/5"
@@ -3889,67 +3802,6 @@ function LeagueApp() {
             >
               Close
             </button>
-          </motion.div>
-        </div>
-      )}
-
-      {/* Preseason Match Modal */}
-      {showPreseasonModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="absolute inset-0 bg-pl-ink/90 backdrop-blur-sm"
-            onClick={() => setShowPreseasonModal(false)}
-          />
-          <motion.div 
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="glass rounded-2xl p-8 w-full max-w-md relative z-10"
-          >
-            <h3 className="font-display text-xl uppercase tracking-widest text-pl-pink mb-6">Add Preseason Match</h3>
-            
-            <div className="space-y-6 mb-8">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[10px] font-condensed text-white/40 uppercase tracking-widest mb-2">Home Player</label>
-                  <select 
-                    value={preseasonFixture.homeId}
-                    onChange={(e) => setPreseasonFixture({ ...preseasonFixture, homeId: e.target.value })}
-                    className="w-full bg-pl-ink border border-white/10 rounded-xl px-4 py-3 text-xs focus:border-pl-pink outline-none transition-colors"
-                  >
-                    <option value="">Select Player</option>
-                    {players.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[10px] font-condensed text-white/40 uppercase tracking-widest mb-2">Away Player</label>
-                  <select 
-                    value={preseasonFixture.awayId}
-                    onChange={(e) => setPreseasonFixture({ ...preseasonFixture, awayId: e.target.value })}
-                    className="w-full bg-pl-ink border border-white/10 rounded-xl px-4 py-3 text-xs focus:border-pl-pink outline-none transition-colors"
-                  >
-                    <option value="">Select Player</option>
-                    {players.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <button 
-                onClick={addPreseasonFixture}
-                className="bg-pl-pink text-white py-4 rounded-lg font-condensed font-bold text-xs uppercase tracking-widest hover:brightness-110 transition-all"
-              >
-                Add Match
-              </button>
-              <button 
-                onClick={() => setShowPreseasonModal(false)}
-                className="bg-white/5 text-white/60 py-4 rounded-lg font-condensed font-bold text-xs uppercase tracking-widest hover:bg-white/10 transition-all"
-              >
-                Cancel
-              </button>
-            </div>
           </motion.div>
         </div>
       )}
