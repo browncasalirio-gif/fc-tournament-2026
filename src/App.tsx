@@ -1805,7 +1805,7 @@ function LeagueApp() {
           
           <div className="flex justify-center max-w-md mx-auto glass rounded-lg divide-x divide-white/10 mt-8">
             <div className="flex-1 py-4">
-              <div className="font-display text-2xl text-pl-cyan leading-none">{uniquePlayers.length}</div>
+              <div className="font-display text-2xl text-pl-cyan leading-none">{uniquePlayers.filter(p => p.active !== false).length}</div>
               <div className="font-condensed text-[10px] text-white/40 tracking-widest uppercase mt-1">Players</div>
             </div>
             <div className="flex-1 py-4">
@@ -3484,7 +3484,7 @@ function LeagueApp() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {[
                 { label: 'Total Users', value: allUsers.length, icon: Users, color: 'text-pl-cyan' },
-                { label: 'Total Players', value: uniquePlayers.length, icon: Trophy, color: 'text-pl-pink' },
+                { label: 'Total Players', value: uniquePlayers.filter(p => p.active !== false).length, icon: Trophy, color: 'text-pl-pink' },
                 { label: 'League Matches', value: fixtures.length, icon: Swords, color: 'text-pl-purple' },
                 { label: 'UEFA Matches', value: uefaFixtures.length, icon: ShieldCheck, color: 'text-emerald-400' },
               ].map((stat, i) => (
