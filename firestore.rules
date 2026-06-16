@@ -111,7 +111,10 @@ service cloud.firestore {
           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin') ||
          request.auth.token.email == "olaniyantoheebola@gmail.com" ||
          request.auth.token.email == "thelegendaryeman@gmail.com" ||
-         request.auth.token.email == "Alikibogy@gmail.com");
+         request.auth.token.email == "alikibogy@gmail.com" ||
+         request.auth.token.email == "Alikibogy@gmail.com" ||
+         (exists(/databases/$(database)/documents/config/adminEmails) &&
+          request.auth.token.email in get(/databases/$(database)/documents/config/adminEmails).data.emails));
     }
 
     function isOwner(userId) {
@@ -169,7 +172,7 @@ service cloud.firestore {
              data.homeId is string && data.awayId is string &&
              data.homeName is string && data.awayName is string &&
              data.status in ['pending', 'played', 'overdue'] &&
-             data.competition in ['league', 'uefa', 'preseason'] &&
+             data.competition in ['league', 'uefa', 'preseason', 'playoff'] &&
              (data.ownerUid == request.auth.uid || isAdmin()) &&
              (data.homeScore == null || data.homeScore is int) &&
              (data.awayScore == null || data.awayScore is int) &&

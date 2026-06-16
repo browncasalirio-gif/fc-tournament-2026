@@ -1395,6 +1395,18 @@ function LeagueApp() {
     try {
       const ref = doc(db, 'config', 'adminEmails');
       await setDoc(ref, { emails: [...adminEmails, email] }, { merge: true });
+
+      // Also update the user's document role to 'admin' immediately so
+      // Firestore security rules recognize them without a re-login
+      const usersSnap = await getDocs(query(collection(db, 'users'), where('email', '==', email)));
+      if (!usersSnap.empty) {
+        const batch = writeBatch(db);
+        usersSnap.docs.forEach(userDoc => {
+          batch.update(doc(db, 'users', userDoc.id), { role: 'admin' });
+        });
+        await batch.commit();
+      }
+
       setNewAdminEmail('');
       showToast(`${email} added as admin`);
     } catch (err) {
@@ -1407,6 +1419,20 @@ function LeagueApp() {
     try {
       const ref = doc(db, 'config', 'adminEmails');
       await setDoc(ref, { emails: adminEmails.filter(e => e !== email) }, { merge: true });
+
+      // Also revoke the user's role in their user document
+      const hardcodedAdmins = ['olaniyantoheebola@gmail.com', 'thelegendaryeman@gmail.com', 'alikibogy@gmail.com'];
+      if (!hardcodedAdmins.includes(email.toLowerCase())) {
+        const usersSnap = await getDocs(query(collection(db, 'users'), where('email', '==', email)));
+        if (!usersSnap.empty) {
+          const batch = writeBatch(db);
+          usersSnap.docs.forEach(userDoc => {
+            batch.update(doc(db, 'users', userDoc.id), { role: 'user' });
+          });
+          await batch.commit();
+        }
+      }
+
       showToast(`${email} removed from admins`);
     } catch (err) {
       console.error("Failed to remove admin email", err);
