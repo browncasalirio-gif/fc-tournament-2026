@@ -270,6 +270,9 @@ function LeagueApp() {
   const [h2hSoloPlayer, setH2hSoloPlayer] = useState('');
   const [playoffEditingFixture, setPlayoffEditingFixture] = useState<string | null>(null);
   const [playoffScores, setPlayoffScores] = useState<{ home: number; away: number }>({ home: 0, away: 0 });
+  const [showSwapPanel, setShowSwapPanel] = useState(false);
+  const [swapOutId, setSwapOutId] = useState('');
+  const [swapInId, setSwapInId] = useState('');
   const [pin, setPin] = useState('');
   const [authError, setAuthError] = useState('');
   const [isAdminLoginMode, setIsAdminLoginMode] = useState(false);
@@ -1546,6 +1549,53 @@ function LeagueApp() {
       showToast("Playoff score updated!");
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, 'fixtures');
+    }
+  };
+
+  const swapPlayoffPlayer = async () => {
+    if (!isAdmin || !user || !swapOutId || !swapInId || swapOutId === swapInId) {
+      showToast('Please select two different players', 'error');
+      return;
+    }
+    const playerOut = allPlayers.find(p => p.id === swapOutId);
+    const playerIn = allPlayers.find(p => p.id === swapInId);
+    if (!playerOut || !playerIn) {
+      showToast('Could not find selected players', 'error');
+      return;
+    }
+    // Find ALL pending playoff fixtures (any round) involving the player being swapped out
+    const affectedFixtures = playoffFixtures.filter(
+      f => f.status !== 'played' && (f.homeId === swapOutId || f.awayId === swapOutId)
+    );
+    if (affectedFixtures.length === 0) {
+      showToast(`${playerOut.name} has no pending playoff fixtures to update`, 'error');
+      return;
+    }
+    if (!window.confirm(
+      `Replace ${playerOut.name} with ${playerIn.name} in ${affectedFixtures.length} pending playoff fixture(s)?\n\nOnly unplayed matches will be updated. Already-played results will NOT be changed.`
+    )) return;
+    try {
+      const batch = writeBatch(db);
+      affectedFixtures.forEach(f => {
+        const updates: Record<string, any> = {};
+        if (f.homeId === swapOutId) {
+          updates.homeId = swapInId;
+          updates.homeName = playerIn.name;
+        }
+        if (f.awayId === swapOutId) {
+          updates.awayId = swapInId;
+          updates.awayName = playerIn.name;
+        }
+        batch.update(doc(db, 'fixtures', f.id), updates);
+      });
+      await batch.commit();
+      setSwapOutId('');
+      setSwapInId('');
+      setShowSwapPanel(false);
+      showToast(`✅ ${playerOut.name} replaced by ${playerIn.name} in ${affectedFixtures.length} fixture(s)!`);
+    } catch (err) {
+      console.error('Swap failed', err);
+      showToast('Failed to swap player', 'error');
     }
   };
 
@@ -3083,9 +3133,125 @@ function LeagueApp() {
                     >
                       <Trophy size={12} /> Generate Final
                     </button>
+                    {playoffFixtures.length > 0 && (
+                      <button
+                        onClick={() => { setShowSwapPanel(v => !v); setSwapOutId(''); setSwapInId(''); }}
+                        className={`px-4 py-2.5 rounded-xl font-condensed font-bold text-[10px] uppercase tracking-widest hover:scale-105 transition-transform flex items-center gap-2 ${
+                          showSwapPanel ? 'bg-white/20 text-white' : 'bg-orange-600 text-white'
+                        }`}
+                      >
+                        <Edit3 size={12} /> Sub Player
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
+
+              {/* Admin: Swap Player Panel */}
+              <AnimatePresence>
+                {isAdmin && showSwapPanel && playoffFixtures.length > 0 && (() => {
+                  // Collect unique player IDs currently in pending playoff fixtures
+                  const pendingFixtures = playoffFixtures.filter(f => f.status !== 'played');
+                  const playersInPlayoff = new Map<string, string>(); // id -> name
+                  pendingFixtures.forEach(f => {
+                    playersInPlayoff.set(f.homeId, f.homeName);
+                    playersInPlayoff.set(f.awayId, f.awayName);
+                  });
+                  // All players not already in a pending playoff fixture (potential subs)
+                  const potentialSubs = allPlayers.filter(
+                    p => !playersInPlayoff.has(p.id) && p.active !== false
+                  );
+                  return (
+                    <motion.div
+                      key="swap-panel"
+                      initial={{ opacity: 0, height: 0, marginBottom: 0 }}
+                      animate={{ opacity: 1, height: 'auto', marginBottom: 0 }}
+                      exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="glass rounded-2xl p-6 border-l-4 border-orange-500">
+                        <div className="flex items-center gap-3 mb-4">
+                          <Edit3 size={16} className="text-orange-400" />
+                          <h3 className="font-condensed font-bold text-xs uppercase tracking-widest text-orange-400">
+                            Player Substitution
+                          </h3>
+                          <span className="text-[10px] text-white/30 font-condensed uppercase tracking-widest ml-1">
+                            — Swap out an injured / unavailable player from pending fixtures
+                          </span>
+                        </div>
+                        <div className="grid sm:grid-cols-2 gap-4 mb-5">
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-condensed font-bold uppercase tracking-widest text-white/40">
+                              Player Out (currently in playoffs)
+                            </label>
+                            <select
+                              value={swapOutId}
+                              onChange={e => setSwapOutId(e.target.value)}
+                              className="w-full bg-pl-ink border border-orange-500/30 rounded-xl px-4 py-3 text-sm font-bold focus:border-orange-400 outline-none transition-colors appearance-none"
+                            >
+                              <option value="">— Select player to remove —</option>
+                              {Array.from(playersInPlayoff.entries()).map(([id, name]) => (
+                                <option key={id} value={id}>{name}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-condensed font-bold uppercase tracking-widest text-white/40">
+                              Player In (replacement)
+                            </label>
+                            <select
+                              value={swapInId}
+                              onChange={e => setSwapInId(e.target.value)}
+                              className="w-full bg-pl-ink border border-emerald-500/30 rounded-xl px-4 py-3 text-sm font-bold focus:border-emerald-400 outline-none transition-colors appearance-none"
+                            >
+                              <option value="">— Select replacement player —</option>
+                              {potentialSubs.length === 0 && (
+                                <option disabled value="">No eligible subs (all players already in playoffs)</option>
+                              )}
+                              {potentialSubs.map(p => (
+                                <option key={p.id} value={p.id}>{p.name}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                        {swapOutId && swapInId && (() => {
+                          const outName = playersInPlayoff.get(swapOutId) || '?';
+                          const inPlayer = allPlayers.find(p => p.id === swapInId);
+                          const count = playoffFixtures.filter(f => f.status !== 'played' && (f.homeId === swapOutId || f.awayId === swapOutId)).length;
+                          return (
+                            <div className="bg-orange-500/10 border border-orange-500/20 rounded-xl p-4 mb-4 text-sm">
+                              <p className="text-white/70">
+                                <span className="text-orange-400 font-bold">{outName}</span>
+                                <span className="text-white/40 mx-2">→</span>
+                                <span className="text-emerald-400 font-bold">{inPlayer?.name}</span>
+                                <span className="text-white/40 ml-2">in {count} pending fixture(s)</span>
+                              </p>
+                              <p className="text-[10px] text-white/30 uppercase tracking-widest mt-1">
+                                Already-played results will not be affected
+                              </p>
+                            </div>
+                          );
+                        })()}
+                        <div className="flex gap-3">
+                          <button
+                            onClick={swapPlayoffPlayer}
+                            disabled={!swapOutId || !swapInId}
+                            className="bg-orange-500 disabled:opacity-30 disabled:cursor-not-allowed text-white px-6 py-2.5 rounded-xl font-condensed font-bold text-[10px] uppercase tracking-widest hover:brightness-110 transition-all"
+                          >
+                            Confirm Substitution
+                          </button>
+                          <button
+                            onClick={() => { setShowSwapPanel(false); setSwapOutId(''); setSwapInId(''); }}
+                            className="bg-white/10 text-white/60 px-6 py-2.5 rounded-xl font-condensed font-bold text-[10px] uppercase tracking-widest hover:bg-white/20 transition-all"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  );
+                })()}
+              </AnimatePresence>
 
               {/* Top 8 Qualification summary */}
               {(() => {
