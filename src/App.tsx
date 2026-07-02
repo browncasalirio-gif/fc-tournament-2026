@@ -945,6 +945,66 @@ function LeagueApp() {
     }
   };
 
+  const resetAllWcFixtures = async () => {
+    if (!isAdmin || !user || !currentSeasonId) return;
+    if (!window.confirm("Are you sure you want to delete ALL World Cup fixtures (group and knockout matches) and clear players' group assignments?")) return;
+    try {
+      setLoading(true);
+      const batch = writeBatch(db);
+      
+      // 1. Delete all WC fixtures for this season
+      const wcFixturesToDelete = allFixtures.filter(f => f.competition === 'wc' && f.seasonId === currentSeasonId);
+      wcFixturesToDelete.forEach(f => {
+        batch.delete(doc(db, 'fixtures', f.id));
+      });
+
+      // 2. Clear wcGroup assignments from all players
+      allPlayers.forEach(p => {
+        if (p.wcGroup) {
+          batch.update(doc(db, 'players', p.id), { wcGroup: null });
+        }
+      });
+
+      await batch.commit();
+      showToast("All World Cup fixtures deleted and group assignments cleared!", "success");
+    } catch (err) {
+      console.error("Failed to reset WC fixtures", err);
+      showToast("Failed to reset WC fixtures", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resetAllWcTeams = async () => {
+    if (!isAdmin || !user) return;
+    if (!window.confirm("Are you sure you want to reset WC teams for ALL players? This removes their selected teams and tags.")) return;
+    try {
+      setLoading(true);
+      const batch = writeBatch(db);
+
+      allPlayers.forEach(p => {
+        if (p.wcTeam) {
+          const baseName = p.name.split(' (')[0];
+          batch.update(doc(db, 'players', p.id), {
+            name: baseName,
+            wcTeam: null,
+            wcPot: null,
+            wcGroup: null
+          });
+        }
+      });
+
+      await batch.commit();
+      showToast("Reset all player World Cup teams and tags successfully!", "success");
+    } catch (err) {
+      console.error("Failed to reset all WC teams", err);
+      showToast("Failed to reset all WC teams", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
   const generateWcGroups = async () => {
     if (!isAdmin) return;
     try {
@@ -4139,14 +4199,30 @@ function LeagueApp() {
             )}
 
             {isAdmin && (
-              <div className="flex justify-center mb-4">
-                <button
-                  onClick={generateWcGroups}
-                  disabled={loading}
-                  className="bg-pl-cyan text-pl-ink px-6 py-3 rounded-xl font-condensed font-bold uppercase tracking-widest hover:scale-105 transition-transform disabled:opacity-50"
-                >
-                  Generate WC Groups & Fixtures
-                </button>
+              <div className="flex flex-col items-center gap-3 mb-6">
+                <div className="flex flex-wrap justify-center gap-3">
+                  <button
+                    onClick={generateWcGroups}
+                    disabled={loading}
+                    className="bg-pl-cyan text-pl-ink px-6 py-3 rounded-xl font-condensed font-bold uppercase tracking-widest hover:scale-105 transition-transform disabled:opacity-50 text-sm"
+                  >
+                    Generate WC Groups & Fixtures
+                  </button>
+                  <button
+                    onClick={resetAllWcFixtures}
+                    disabled={loading}
+                    className="bg-red-500/20 text-red-400 border border-red-500/50 px-5 py-3 rounded-xl font-condensed font-bold uppercase tracking-widest hover:bg-red-500 hover:text-white transition-colors disabled:opacity-50 text-xs"
+                  >
+                    Reset All Fixtures & Groups
+                  </button>
+                  <button
+                    onClick={resetAllWcTeams}
+                    disabled={loading}
+                    className="bg-purple-500/20 text-purple-400 border border-purple-500/50 px-5 py-3 rounded-xl font-condensed font-bold uppercase tracking-widest hover:bg-purple-500 hover:text-white transition-colors disabled:opacity-50 text-xs"
+                  >
+                    Reset All Teams
+                  </button>
+                </div>
               </div>
             )}
             
