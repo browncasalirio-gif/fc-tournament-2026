@@ -66,6 +66,9 @@ type Player = {
   ownerUid: string;
   bio?: string;
   active?: boolean;
+  wcTeam?: string;
+  wcPot?: 'A' | 'B';
+  wcGroup?: 'A' | 'B' | 'C' | 'D';
 };
 
 type Fixture = {
@@ -298,6 +301,62 @@ function LeagueApp() {
     return allFixtures.filter(f => f.competition === 'playoff' && f.seasonId === currentSeasonId);
   }, [allFixtures, currentSeasonId]);
 
+  const wcTableData = useMemo(() => {
+    const groups: Record<string, TableRow[]> = { 'A': [], 'B': [], 'C': [], 'D': [] };
+    
+    // Initialize stats for each group
+    ['A', 'B', 'C', 'D'].forEach(g => {
+      const groupPlayers = allPlayers.filter(p => p.wcGroup === g);
+      const stats: Record<string, TableRow> = {};
+      
+      groupPlayers.forEach(p => {
+        stats[p.id] = {
+          id: p.id,
+          name: p.name,
+          club: p.wcTeam || p.club,
+          p: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, pts: 0,
+          form: []
+        };
+      });
+
+      // Compute stats
+      allFixtures.filter(f => f.competition === 'wc' && f.round === `group_${g}` && f.status === 'played' && f.seasonId === currentSeasonId).forEach(f => {
+        const h = stats[f.homeId];
+        const a = stats[f.awayId];
+        if (!h || !a) return;
+
+        h.p++; a.p++;
+        h.gf += f.homeScore || 0; h.ga += f.awayScore || 0;
+        a.gf += f.awayScore || 0; a.ga += f.homeScore || 0;
+
+        if ((f.homeScore || 0) > (f.awayScore || 0)) {
+          h.w++; h.pts += 3; a.l++;
+          h.form.unshift('W'); a.form.unshift('L');
+        } else if ((f.homeScore || 0) < (f.awayScore || 0)) {
+          a.w++; a.pts += 3; h.l++;
+          h.form.unshift('L'); a.form.unshift('W');
+        } else {
+          h.d++; h.pts += 1; a.d++; a.pts += 1;
+          h.form.unshift('D'); a.form.unshift('D');
+        }
+      });
+
+      // Sort group table
+      const sorted = Object.values(stats).sort((a, b) => {
+        if (b.pts !== a.pts) return b.pts - a.pts;
+        const bGd = b.gf - b.ga;
+        const aGd = a.gf - a.ga;
+        if (bGd !== aGd) return bGd - aGd;
+        if (b.gf !== a.gf) return b.gf - a.gf;
+        return a.name.localeCompare(b.name);
+      });
+
+      groups[g] = sorted;
+    });
+
+    return groups;
+  }, [allFixtures, allPlayers, currentSeasonId]);
+
   const getPlayerForm = (playerId: string) => {
     const playerFixtures = [...fixtures, ...uefaFixtures]
       .filter(f => (f.homeId === playerId || f.awayId === playerId) && f.status === 'played')
@@ -494,7 +553,7 @@ function LeagueApp() {
 
     setLoading(true);
     const selectedUid = user?.uid || 'guest';
-    const playersQuery = query(collection(db, 'players'), where('ownerUid', '==', selectedUid));
+    const playersQuery = collection(db, 'players');
     const fixturesQuery = query(collection(db, 'fixtures'), where('ownerUid', '==', selectedUid));
 
     const unsubPlayers = onSnapshot(playersQuery, (snapshot) => {
@@ -614,6 +673,19 @@ function LeagueApp() {
     "Nottingham Forest", "Sheffield United", "West Ham United", "Wolverhampton Wanderers",
     "Olympique de Marseille", "Newcastle United", "Tottenham Hotspur", "Chelsea",
     "Manchester United", "Liverpool", "Manchester City", "Arsenal"
+  ];
+
+  const WC_POT_A = [
+    "Mexico", "Canada", "USA", "Croatia", "Ghana", "Uruguay", "Japan", "Senegal"
+  ];
+
+  const WC_POT_B = [
+    "Brazil", "France", "England", "Spain", "Portugal", "Argentina", 
+    "Netherlands", "Morocco", "Germany", "Sweden", "Belgium", "Ivory Coast"
+  ];
+
+  const WC_SEEDS = [
+    "Henryjr_7", "Ebo2gee", "Jeffshiestyy", "Enlightened_view"
   ];
 
   const generateSeason = async () => {
@@ -795,6 +867,452 @@ function LeagueApp() {
     if (p2Goals > p1Goals) return p2Id;
     // Tiebreak: higher seed (p1) advances on exact tie
     return p1Id;
+  };
+
+  const pickWcTeam = async (playerId: string) => {
+    const player = allPlayers.find(p => p.id === playerId);
+    if (!player) return;
+
+    // Check if they already picked
+    if (player.wcTeam) {
+      showToast("You have already picked a team!", "error");
+      return;
+    }
+
+    // Determine Seed and Pot
+    const isSeeded = WC_SEEDS.includes(player.name.split(' (')[0]);
+    const pot = isSeeded ? WC_POT_A : WC_POT_B;
+    const potLabel = isSeeded ? 'A' : 'B';
+
+    // Find available teams
+    const takenTeams = new Set(allPlayers.map(p => p.wcTeam).filter(Boolean));
+    const availableTeams = pot.filter(t => !takenTeams.has(t));
+
+    if (availableTeams.length === 0) {
+      showToast("No teams left in your assigned Pot!", "error");
+      return;
+    }
+
+    // Pick random
+    const randomIndex = Math.floor(Math.random() * availableTeams.length);
+    const selectedTeam = availableTeams[randomIndex];
+    const initials = selectedTeam.substring(0, 3).toUpperCase();
+    
+    // Strip old initials if any exist, just to be safe, though there shouldn't be
+    const baseName = player.name.split(' (')[0];
+    const newName = `${baseName} (${initials})`;
+
+    try {
+      setLoading(true);
+      const playerRef = doc(db, 'players', player.id);
+      await updateDoc(playerRef, {
+        name: newName,
+        wcTeam: selectedTeam,
+        wcPot: potLabel
+      });
+      showToast(`You picked ${selectedTeam}!`, "success");
+    } catch (err) {
+      console.error("Failed to assign WC team", err);
+      showToast("Failed to assign team", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resetWcTeam = async (playerId: string) => {
+    if (!isAdmin) return;
+    const player = allPlayers.find(p => p.id === playerId);
+    if (!player || !player.wcTeam) return;
+    
+    // Strip the initials (XXX) from the name
+    const baseName = player.name.split(' (')[0];
+    
+    try {
+      setLoading(true);
+      const playerRef = doc(db, 'players', player.id);
+      await updateDoc(playerRef, {
+        name: baseName,
+        wcTeam: null,
+        wcPot: null,
+        wcGroup: null
+      });
+      showToast(`Reset team for ${baseName}`, "success");
+    } catch (err) {
+      console.error("Failed to reset WC team", err);
+      showToast("Failed to reset team", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const generateWcGroups = async () => {
+    if (!isAdmin) return;
+    try {
+      setLoading(true);
+
+      const wcPlayers = allPlayers.filter(p => p.active !== false && p.wcTeam);
+      if (wcPlayers.length !== 16) {
+        throw new Error(`Need exactly 16 players who have picked a WC team. Currently have ${wcPlayers.length}.`);
+      }
+
+      // Check if groups already generated
+      if (wcPlayers.some(p => p.wcGroup)) {
+        throw new Error("Groups are already generated! Please reset or clear them first if you want a re-draw.");
+      }
+
+      // Separate seeds and unseeded
+      const seeds = wcPlayers.filter(p => WC_SEEDS.includes(p.name.split(' (')[0]));
+      const unseeded = wcPlayers.filter(p => !WC_SEEDS.includes(p.name.split(' (')[0]));
+
+      if (seeds.length !== 4 || unseeded.length !== 12) {
+        throw new Error(`Invalid breakdown. Seeds: ${seeds.length}, Unseeded: ${unseeded.length}. Should be 4 and 12.`);
+      }
+
+      // Calculate Power Rankings for unseeded (all-time league points)
+      const unseededRankings = unseeded.map(p => {
+        let pts = 0;
+        allFixtures.forEach(f => {
+          if (f.competition === 'league' && f.status === 'played') {
+            if (f.homeId === p.id) {
+              if (f.homeScore! > f.awayScore!) pts += 3;
+              else if (f.homeScore! === f.awayScore!) pts += 1;
+            } else if (f.awayId === p.id) {
+              if (f.awayScore! > f.homeScore!) pts += 3;
+              else if (f.awayScore! === f.homeScore!) pts += 1;
+            }
+          }
+        });
+        return { player: p, pts };
+      });
+
+      // Sort descending by points
+      unseededRankings.sort((a, b) => b.pts - a.pts);
+
+      // Split into Pots 2, 3, 4
+      const pot2 = unseededRankings.slice(0, 4).map(r => r.player);
+      const pot3 = unseededRankings.slice(4, 8).map(r => r.player);
+      const pot4 = unseededRankings.slice(8, 12).map(r => r.player);
+
+      // Shuffle helper
+      const shuffle = (array: Player[]) => [...array].sort(() => Math.random() - 0.5);
+
+      const shuffledSeeds = shuffle(seeds);
+      const shuffledPot2 = shuffle(pot2);
+      const shuffledPot3 = shuffle(pot3);
+      const shuffledPot4 = shuffle(pot4);
+
+      const groups = ['A', 'B', 'C', 'D'] as const;
+      
+      const batch = writeBatch(db);
+
+      // Assign groups and prepare fixture groupings
+      const groupedPlayers: Record<string, Player[]> = { 'A': [], 'B': [], 'C': [], 'D': [] };
+
+      for (let i = 0; i < 4; i++) {
+        const groupLetter = groups[i];
+        const groupAssignments = [
+          shuffledSeeds[i],
+          shuffledPot2[i],
+          shuffledPot3[i],
+          shuffledPot4[i]
+        ];
+
+        groupAssignments.forEach(player => {
+          groupedPlayers[groupLetter].push(player);
+          batch.update(doc(db, 'players', player.id), { wcGroup: groupLetter });
+        });
+      }
+
+      // Generate Group Fixtures (Double Round Robin for each group)
+      const today = new Date();
+      groups.forEach(groupLetter => {
+        const groupMembers = groupedPlayers[groupLetter];
+        
+        // 4 players in a group -> 6 rounds for double round robin
+        // R1: 1v2, 3v4
+        // R2: 1v3, 2v4
+        // R3: 1v4, 2v3
+        // R4-6 are reverse of R1-3
+        const matchups = [
+          [[0,1], [2,3]],
+          [[0,2], [1,3]],
+          [[0,3], [1,2]]
+        ];
+
+        let matchdayOffset = 1;
+        
+        // Home
+        matchups.forEach((roundMatchups, index) => {
+          const deadlineStr = new Date(today.getTime() + (index + 1) * 7 * 86400000).toISOString().split('T')[0];
+          roundMatchups.forEach(([hIdx, aIdx]) => {
+            const h = groupMembers[hIdx];
+            const a = groupMembers[aIdx];
+            batch.set(doc(collection(db, 'fixtures')), {
+              matchday: matchdayOffset,
+              homeId: h.id,
+              awayId: a.id,
+              homeName: h.name,
+              awayName: a.name,
+              homeScore: null,
+              awayScore: null,
+              status: 'pending',
+              deadline: deadlineStr,
+              competition: 'wc',
+              round: `group_${groupLetter}`, // tag with group
+              ownerUid: user.uid,
+              seasonId: currentSeasonId
+            });
+          });
+          matchdayOffset++;
+        });
+
+        // Away
+        matchups.forEach((roundMatchups, index) => {
+          const deadlineStr = new Date(today.getTime() + (index + 4) * 7 * 86400000).toISOString().split('T')[0];
+          roundMatchups.forEach(([aIdx, hIdx]) => { // Swapped for away
+            const h = groupMembers[hIdx];
+            const a = groupMembers[aIdx];
+            batch.set(doc(collection(db, 'fixtures')), {
+              matchday: matchdayOffset,
+              homeId: h.id,
+              awayId: a.id,
+              homeName: h.name,
+              awayName: a.name,
+              homeScore: null,
+              awayScore: null,
+              status: 'pending',
+              deadline: deadlineStr,
+              competition: 'wc',
+              round: `group_${groupLetter}`,
+              ownerUid: user.uid,
+              seasonId: currentSeasonId
+            });
+          });
+          matchdayOffset++;
+        });
+      });
+
+      await batch.commit();
+      showToast("World Cup Groups and Fixtures generated successfully!", "success");
+    } catch (err) {
+      console.error("Failed to generate WC groups", err);
+      showToast(err instanceof Error ? err.message : "Failed to generate groups", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Helper: get WC aggregate winner from 2-leg tie (or 1 for Final)
+  const getWcTieWinner = (p1Id: string, p2Id: string, round: string): string | null => {
+    const isFinal = round === 'wc_F';
+    const legs = allFixtures.filter(f =>
+      f.competition === 'wc' && f.round === round &&
+      ((f.homeId === p1Id && f.awayId === p2Id) || (f.homeId === p2Id && f.awayId === p1Id))
+    );
+    const requiredLegs = isFinal ? 1 : 2;
+    if (legs.length < requiredLegs || legs.some(l => l.status !== 'played')) return null;
+    let p1Goals = 0, p2Goals = 0;
+    legs.forEach(f => {
+      if (f.homeId === p1Id) { p1Goals += f.homeScore || 0; p2Goals += f.awayScore || 0; }
+      else { p2Goals += f.homeScore || 0; p1Goals += f.awayScore || 0; }
+    });
+    if (p1Goals > p2Goals) return p1Id;
+    if (p2Goals > p1Goals) return p2Id;
+    return p1Id; // Tiebreak: higher seed advances
+  };
+
+  const generateWcQF = async () => {
+    if (!isAdmin || !user || !currentSeasonId) return;
+    try {
+      setLoading(true);
+
+      // Validate all group games played
+      const groupFixtures = allFixtures.filter(f => f.competition === 'wc' && f.round.startsWith('group_') && f.seasonId === currentSeasonId);
+      if (groupFixtures.some(f => f.status !== 'played')) {
+        throw new Error('Complete all group stage fixtures first!');
+      }
+
+      // Get top 2 from each group (sorted by wcTableData which is already computed)
+      const qualifiers: Record<string, {first: string, second: string}> = {};
+      ['A', 'B', 'C', 'D'].forEach(g => {
+        const sorted = wcTableData[g];
+        if (!sorted || sorted.length < 2) throw new Error(`Group ${g} does not have enough players.`);
+        qualifiers[g] = { first: sorted[0].id, second: sorted[1].id };
+      });
+
+      // Classic World Cup QF bracket:
+      // QF1: Winner A vs Runner-up B
+      // QF2: Winner C vs Runner-up D
+      // QF3: Winner B vs Runner-up A
+      // QF4: Winner D vs Runner-up C
+      const qfMatchups = [
+        { h: qualifiers['A'].first, a: qualifiers['B'].second },
+        { h: qualifiers['C'].first, a: qualifiers['D'].second },
+        { h: qualifiers['B'].first, a: qualifiers['A'].second },
+        { h: qualifiers['D'].first, a: qualifiers['C'].second },
+      ];
+
+      const getName = (id: string) => allPlayers.find(p => p.id === id)?.name || id;
+      const today = new Date();
+      const batch = writeBatch(db);
+
+      // Delete existing WC knockout fixtures
+      allFixtures.filter(f => f.competition === 'wc' && (f.round === 'wc_QF' || f.round === 'wc_SF' || f.round === 'wc_F') && f.seasonId === currentSeasonId)
+        .forEach(f => batch.delete(doc(db, 'fixtures', f.id)));
+
+      qfMatchups.forEach(({ h, a }) => {
+        const d1 = new Date(today); d1.setDate(today.getDate() + 7);
+        const d2 = new Date(today); d2.setDate(today.getDate() + 14);
+        // Leg 1
+        batch.set(doc(collection(db, 'fixtures')), {
+          matchday: 1, homeId: h, awayId: a,
+          homeName: getName(h), awayName: getName(a),
+          homeScore: null, awayScore: null, status: 'pending',
+          deadline: d1.toISOString().split('T')[0],
+          competition: 'wc', round: 'wc_QF', ownerUid: user.uid, seasonId: currentSeasonId,
+        });
+        // Leg 2
+        batch.set(doc(collection(db, 'fixtures')), {
+          matchday: 2, homeId: a, awayId: h,
+          homeName: getName(a), awayName: getName(h),
+          homeScore: null, awayScore: null, status: 'pending',
+          deadline: d2.toISOString().split('T')[0],
+          competition: 'wc', round: 'wc_QF', ownerUid: user.uid, seasonId: currentSeasonId,
+        });
+      });
+
+      await batch.commit();
+      showToast('WC Quarter-Finals generated! 🏆', 'success');
+    } catch (err) {
+      console.error('WC QF generation failed', err);
+      showToast(err instanceof Error ? err.message : 'QF generation failed', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const generateWcSF = async () => {
+    if (!isAdmin || !user || !currentSeasonId) return;
+    try {
+      setLoading(true);
+
+      // Get all QF fixtures for this season
+      const qfFixtures = allFixtures.filter(f => f.competition === 'wc' && f.round === 'wc_QF' && f.seasonId === currentSeasonId);
+      if (qfFixtures.length < 8) throw new Error('Quarter-Final fixtures not found. Generate QF first.');
+
+      // Group QF legs into 4 ties by unique pair
+      const ties: Map<string, typeof qfFixtures> = new Map();
+      qfFixtures.forEach(f => {
+        const key = [f.homeId, f.awayId].sort().join('_');
+        if (!ties.has(key)) ties.set(key, []);
+        ties.get(key)!.push(f);
+      });
+
+      const tieList = Array.from(ties.entries());
+      if (tieList.length < 4) throw new Error('Need all 4 QF ties.');
+
+      const winners: string[] = [];
+      for (const [, legs] of tieList) {
+        const p1 = legs[0].homeId, p2 = legs[0].awayId;
+        const w = getWcTieWinner(p1, p2, 'wc_QF');
+        if (!w) throw new Error('Complete all Quarter-Final matches first!');
+        winners.push(w);
+      }
+
+      const getName = (id: string) => allPlayers.find(p => p.id === id)?.name || id;
+      const today = new Date();
+      const batch = writeBatch(db);
+
+      allFixtures.filter(f => f.competition === 'wc' && (f.round === 'wc_SF' || f.round === 'wc_F') && f.seasonId === currentSeasonId)
+        .forEach(f => batch.delete(doc(db, 'fixtures', f.id)));
+
+      // SF1: QF1 winner vs QF2 winner | SF2: QF3 winner vs QF4 winner
+      const sfPairs = [
+        { h: winners[0], a: winners[1] },
+        { h: winners[2], a: winners[3] },
+      ];
+
+      sfPairs.forEach(({ h, a }) => {
+        const d1 = new Date(today); d1.setDate(today.getDate() + 7);
+        const d2 = new Date(today); d2.setDate(today.getDate() + 14);
+        batch.set(doc(collection(db, 'fixtures')), {
+          matchday: 1, homeId: h, awayId: a,
+          homeName: getName(h), awayName: getName(a),
+          homeScore: null, awayScore: null, status: 'pending',
+          deadline: d1.toISOString().split('T')[0],
+          competition: 'wc', round: 'wc_SF', ownerUid: user.uid, seasonId: currentSeasonId,
+        });
+        batch.set(doc(collection(db, 'fixtures')), {
+          matchday: 2, homeId: a, awayId: h,
+          homeName: getName(a), awayName: getName(h),
+          homeScore: null, awayScore: null, status: 'pending',
+          deadline: d2.toISOString().split('T')[0],
+          competition: 'wc', round: 'wc_SF', ownerUid: user.uid, seasonId: currentSeasonId,
+        });
+      });
+
+      await batch.commit();
+      showToast('WC Semi-Finals generated! ⚽', 'success');
+    } catch (err) {
+      console.error('WC SF generation failed', err);
+      showToast(err instanceof Error ? err.message : 'SF generation failed', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const generateWcFinal = async () => {
+    if (!isAdmin || !user || !currentSeasonId) return;
+    try {
+      setLoading(true);
+
+      const sfFixtures = allFixtures.filter(f => f.competition === 'wc' && f.round === 'wc_SF' && f.seasonId === currentSeasonId);
+      if (sfFixtures.length < 4) throw new Error('Semi-Final fixtures not found. Generate SF first.');
+
+      const ties: Map<string, typeof sfFixtures> = new Map();
+      sfFixtures.forEach(f => {
+        const key = [f.homeId, f.awayId].sort().join('_');
+        if (!ties.has(key)) ties.set(key, []);
+        ties.get(key)!.push(f);
+      });
+
+      const tieList = Array.from(ties.entries());
+      if (tieList.length < 2) throw new Error('Need both SF ties.');
+
+      const finalists: string[] = [];
+      for (const [, legs] of tieList) {
+        const p1 = legs[0].homeId, p2 = legs[0].awayId;
+        const w = getWcTieWinner(p1, p2, 'wc_SF');
+        if (!w) throw new Error('Complete all Semi-Final matches first!');
+        finalists.push(w);
+      }
+
+      const getName = (id: string) => allPlayers.find(p => p.id === id)?.name || id;
+      const today = new Date();
+      const deadline = new Date(today); deadline.setDate(today.getDate() + 14);
+      const batch = writeBatch(db);
+
+      allFixtures.filter(f => f.competition === 'wc' && f.round === 'wc_F' && f.seasonId === currentSeasonId)
+        .forEach(f => batch.delete(doc(db, 'fixtures', f.id)));
+
+      // Single-leg Final
+      batch.set(doc(collection(db, 'fixtures')), {
+        matchday: 1,
+        homeId: finalists[0], awayId: finalists[1],
+        homeName: getName(finalists[0]), awayName: getName(finalists[1]),
+        homeScore: null, awayScore: null, status: 'pending',
+        deadline: deadline.toISOString().split('T')[0],
+        competition: 'wc', round: 'wc_F', ownerUid: user.uid, seasonId: currentSeasonId,
+      });
+
+      await batch.commit();
+      showToast('WC Final generated! 🏆 Glory awaits!', 'success');
+    } catch (err) {
+      console.error('WC Final generation failed', err);
+      showToast(err instanceof Error ? err.message : 'Final generation failed', 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const generatePlayoffs = async () => {
@@ -3578,97 +4096,332 @@ function LeagueApp() {
               <p className="text-white/40 font-condensed uppercase tracking-widest text-xs mt-2">Pick your nation. Represent your flag.</p>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              {/* Group A */}
-              <div className="glass rounded-xl overflow-hidden border border-white/10">
-                <div className="bg-gradient-to-r from-red-500/20 to-red-500/5 px-4 py-3 border-b border-white/10">
-                  <h3 className="font-display text-lg font-bold uppercase tracking-wider">
-                    Group <span className="text-red-400">A</span>
-                  </h3>
-                </div>
-                <div className="divide-y divide-white/5">
-                  {[
-                    { flag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿', name: 'England' },
-                    { flag: '🇩🇪', name: 'Germany' },
-                    { flag: '🇬🇭', name: 'Ghana' },
-                    { flag: '🇲🇽', name: 'Mexico' },
-                  ].map((team) => (
-                    <div key={team.name} className="flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors">
-                      <span className="text-xl">{team.flag}</span>
-                      <span className="font-condensed font-bold text-[11px] uppercase tracking-wide text-white/90">{team.name}</span>
+            {/* Randomizer Tool */}
+            {user && players.filter(p => p.active !== false).length > 0 && (
+              <div className="glass p-6 rounded-2xl border-l-4 border-pl-cyan mb-8">
+                <h3 className="font-display text-xl uppercase tracking-wider mb-4">Team Randomizer</h3>
+                <div className="space-y-4">
+                  {players.filter(p => p.active !== false).map(p => (
+                    <div key={p.id} className="flex items-center justify-between bg-black/20 p-4 rounded-xl border border-white/5">
+                      <div>
+                        <span className="font-condensed font-bold uppercase tracking-widest text-sm block">{p.name}</span>
+                        {p.wcTeam ? (
+                          <span className="text-emerald-400 font-condensed uppercase tracking-widest text-xs">
+                            Assigned: {p.wcTeam} (Pot {p.wcPot})
+                          </span>
+                        ) : (
+                          <span className="text-white/40 font-condensed uppercase tracking-widest text-xs">No team assigned yet</span>
+                        )}
+                      </div>
+                      {!p.wcTeam ? (
+                        <button
+                          onClick={() => pickWcTeam(p.id)}
+                          disabled={loading}
+                          className="bg-pl-cyan text-pl-ink px-4 py-2 rounded-full font-condensed font-bold uppercase tracking-widest hover:scale-105 transition-transform disabled:opacity-50"
+                        >
+                          Pick Team
+                        </button>
+                      ) : (
+                        isAdmin && (
+                          <button
+                            onClick={() => resetWcTeam(p.id)}
+                            disabled={loading}
+                            className="bg-red-500/20 text-red-400 border border-red-500/50 px-4 py-2 rounded-full font-condensed font-bold uppercase tracking-widest hover:bg-red-500 hover:text-white transition-colors disabled:opacity-50"
+                          >
+                            Admin Reset
+                          </button>
+                        )
+                      )}
                     </div>
                   ))}
                 </div>
               </div>
+            )}
 
-              {/* Group B */}
-              <div className="glass rounded-xl overflow-hidden border border-white/10">
-                <div className="bg-gradient-to-r from-blue-500/20 to-blue-500/5 px-4 py-3 border-b border-white/10">
-                  <h3 className="font-display text-lg font-bold uppercase tracking-wider">
-                    Group <span className="text-blue-400">B</span>
-                  </h3>
-                </div>
-                <div className="divide-y divide-white/5">
-                  {[
-                    { flag: '🇫🇷', name: 'France' },
-                    { flag: '🇮🇹', name: 'Italy' },
-                    { flag: '🇲🇦', name: 'Morocco' },
-                    { flag: '🇳🇱', name: 'Netherlands' },
-                  ].map((team) => (
-                    <div key={team.name} className="flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors">
-                      <span className="text-xl">{team.flag}</span>
-                      <span className="font-condensed font-bold text-[11px] uppercase tracking-wide text-white/90">{team.name}</span>
-                    </div>
-                  ))}
-                </div>
+            {isAdmin && (
+              <div className="flex justify-center mb-4">
+                <button
+                  onClick={generateWcGroups}
+                  disabled={loading}
+                  className="bg-pl-cyan text-pl-ink px-6 py-3 rounded-xl font-condensed font-bold uppercase tracking-widest hover:scale-105 transition-transform disabled:opacity-50"
+                >
+                  Generate WC Groups & Fixtures
+                </button>
               </div>
+            )}
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {['A', 'B', 'C', 'D'].map(groupLetter => {
+                const groupPlayers = allPlayers.filter(p => p.wcGroup === groupLetter);
+                if (groupPlayers.length === 0) return null;
+                
+                const groupColors = {
+                  'A': { border: 'text-red-400', bg: 'from-red-500/20 to-red-500/5' },
+                  'B': { border: 'text-blue-400', bg: 'from-blue-500/20 to-blue-500/5' },
+                  'C': { border: 'text-emerald-400', bg: 'from-emerald-500/20 to-emerald-500/5' },
+                  'D': { border: 'text-amber-400', bg: 'from-amber-500/20 to-amber-500/5' }
+                } as const;
 
-              {/* Group C */}
-              <div className="glass rounded-xl overflow-hidden border border-white/10">
-                <div className="bg-gradient-to-r from-emerald-500/20 to-emerald-500/5 px-4 py-3 border-b border-white/10">
-                  <h3 className="font-display text-lg font-bold uppercase tracking-wider">
-                    Group <span className="text-emerald-400">C</span>
-                  </h3>
-                </div>
-                <div className="divide-y divide-white/5">
-                  {[
-                    { flag: '🇦🇷', name: 'Argentina' },
-                    { flag: '🇵🇹', name: 'Portugal' },
-                    { flag: '🇭🇷', name: 'Croatia' },
-                    { flag: '🇸🇪', name: 'Sweden' },
-                  ].map((team) => (
-                    <div key={team.name} className="flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors">
-                      <span className="text-xl">{team.flag}</span>
-                      <span className="font-condensed font-bold text-[11px] uppercase tracking-wide text-white/90">{team.name}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
+                const theme = groupColors[groupLetter as keyof typeof groupColors];
 
-              {/* Group D */}
-              <div className="glass rounded-xl overflow-hidden border border-white/10">
-                <div className="bg-gradient-to-r from-amber-500/20 to-amber-500/5 px-4 py-3 border-b border-white/10">
-                  <h3 className="font-display text-lg font-bold uppercase tracking-wider">
-                    Group <span className="text-amber-400">D</span>
-                  </h3>
-                </div>
-                <div className="divide-y divide-white/5">
-                  {[
-                    { flag: '🇩🇰', name: 'Denmark' },
-                    { flag: '🇵🇱', name: 'Poland' },
-                    { flag: '🇪🇸', name: 'Spain' },
-                    { flag: '🇺🇸', name: 'USA' },
-                  ].map((team) => (
-                    <div key={team.name} className="flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors">
-                      <span className="text-xl">{team.flag}</span>
-                      <span className="font-condensed font-bold text-[11px] uppercase tracking-wide text-white/90">{team.name}</span>
+                return (
+                  <div key={groupLetter} className="glass rounded-xl overflow-hidden border border-white/10">
+                    <div className={`bg-gradient-to-r ${theme.bg} px-4 py-3 border-b border-white/10`}>
+                      <h3 className="font-display text-lg font-bold uppercase tracking-wider">
+                        Group <span className={theme.border}>{groupLetter}</span>
+                      </h3>
                     </div>
-                  ))}
-                </div>
-              </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-white/5 font-condensed text-[8px] text-white/40 uppercase tracking-widest">
+                            <th className="px-3 py-2 w-8 text-center">#</th>
+                            <th className="px-3 py-2">Player</th>
+                            <th className="px-2 py-2 text-center">P</th>
+                            <th className="px-2 py-2 text-center">GD</th>
+                            <th className="px-3 py-2 text-center text-white">PTS</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-white/5">
+                          {wcTableData[groupLetter]?.map((row, i) => (
+                            <tr key={row.id} className="hover:bg-white/5 transition-colors">
+                              <td className={`px-3 py-2 text-center font-display text-sm ${i < 2 ? theme.border : 'text-white/40'}`}>
+                                {i + 1}
+                              </td>
+                              <td className="px-3 py-2">
+                                <div className="font-bold text-xs">{row.name}</div>
+                                <div className="text-[9px] font-condensed text-white/40 uppercase tracking-widest">{row.club}</div>
+                              </td>
+                              <td className="px-2 py-2 text-center font-display text-xs">{row.p}</td>
+                              <td className="px-2 py-2 text-center font-display text-xs">{row.gf - row.ga > 0 ? '+' : ''}{row.gf - row.ga}</td>
+                              <td className={`px-3 py-2 text-center font-display text-sm ${theme.border}`}>{row.pts}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
+
+            {/* WC Group Stage Fixtures */}
+            {allFixtures.filter(f => f.competition === 'wc' && f.round.startsWith('group_') && f.seasonId === currentSeasonId).length > 0 && (
+              <div className="mt-12 space-y-6">
+                <div className="text-center">
+                  <h3 className="font-display text-2xl uppercase tracking-wider">Group Stage <span className="text-pl-cyan">Fixtures</span></h3>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {[1, 2, 3, 4, 5, 6].map(matchday => {
+                    const mdFixtures = allFixtures.filter(f => f.competition === 'wc' && f.round.startsWith('group_') && f.matchday === matchday && f.seasonId === currentSeasonId);
+                    if (mdFixtures.length === 0) return null;
+
+                    return (
+                      <div key={matchday} className="glass p-6 rounded-2xl border border-white/5">
+                        <div className="flex items-center justify-between mb-6">
+                          <h4 className="font-condensed font-bold text-sm uppercase tracking-widest text-pl-cyan">
+                            Matchday {matchday}
+                          </h4>
+                          {mdFixtures[0].deadline && (
+                            <span className="text-[10px] font-condensed uppercase tracking-widest text-white/40 bg-white/5 px-2 py-1 rounded">
+                              Deadline: {new Date(mdFixtures[0].deadline).toLocaleDateString()}
+                            </span>
+                          )}
+                        </div>
+                        
+                        <div className="space-y-3">
+                          {mdFixtures.map(fixture => (
+                            <div key={fixture.id} className="bg-black/20 rounded-xl p-3 border border-white/5 hover:bg-white/5 transition-colors relative overflow-hidden group">
+                              <div className="absolute top-0 right-0 bg-white/5 text-white/40 px-2 py-0.5 rounded-bl-lg font-condensed text-[8px] uppercase tracking-widest">
+                                Group {fixture.round.split('_')[1]}
+                              </div>
+                              <div className="flex items-center justify-between gap-4 mt-2">
+                                <div className="flex-1 text-right">
+                                  <div className="font-display text-sm">{fixture.homeName}</div>
+                                </div>
+                                <div className="flex-shrink-0 w-16 text-center">
+                                  {fixture.status === 'played' ? (
+                                    <div className="font-display text-xl bg-white/10 px-3 py-1 rounded-lg">
+                                      <span className={fixture.homeScore! > fixture.awayScore! ? 'text-green-400' : fixture.homeScore === fixture.awayScore ? 'text-white' : 'text-white/40'}>{fixture.homeScore}</span>
+                                      <span className="text-white/20 mx-1">-</span>
+                                      <span className={fixture.awayScore! > fixture.homeScore! ? 'text-green-400' : fixture.homeScore === fixture.awayScore ? 'text-white' : 'text-white/40'}>{fixture.awayScore}</span>
+                                    </div>
+                                  ) : (
+                                    <div className="font-condensed text-xs text-white/40 bg-white/5 px-3 py-1.5 rounded-lg">VS</div>
+                                  )}
+                                </div>
+                                <div className="flex-1 text-left">
+                                  <div className="font-display text-sm">{fixture.awayName}</div>
+                                </div>
+                              </div>
+                              
+                              {isAdmin && (
+                                <button
+                                  onClick={() => {
+                                    // Use the same modal logic as playoffs for simplicity
+                                    setPlayoffEditingFixture(fixture.id);
+                                    setPlayoffScores({ home: fixture.homeScore ?? 0, away: fixture.awayScore ?? 0 });
+                                  }}
+                                  className="mt-3 text-[10px] font-condensed text-pl-cyan opacity-60 uppercase tracking-widest hover:opacity-100 transition-colors text-center w-full block"
+                                >
+                                  {fixture.status === 'played' ? 'Edit Score' : 'Enter Score'}
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* WC Knockout Stage */}
+            {(() => {
+              const hasGroupFixtures = allFixtures.some(f =>
+                f.competition === 'wc' && f.round.startsWith('group_') && f.seasonId === currentSeasonId
+              );
+              if (!hasGroupFixtures) return null;
+
+              const wcKnockoutFixtures = allFixtures.filter(f =>
+                f.competition === 'wc' &&
+                (f.round === 'wc_QF' || f.round === 'wc_SF' || f.round === 'wc_F') &&
+                f.seasonId === currentSeasonId
+              );
+
+              const renderWcRound = (
+                roundKey: string,
+                label: string,
+                accentClass: string,
+                borderClass: string,
+                isFinal: boolean
+              ) => {
+                const roundFixtures = wcKnockoutFixtures.filter(f => f.round === roundKey);
+                const ties: Map<string, typeof roundFixtures> = new Map();
+                roundFixtures.forEach(f => {
+                  const key = [f.homeId, f.awayId].sort().join('_');
+                  if (!ties.has(key)) ties.set(key, []);
+                  ties.get(key)!.push(f);
+                });
+                return (
+                  <div className={`glass p-6 rounded-2xl border ${borderClass}`}>
+                    <h3 className={`font-display text-2xl uppercase tracking-wider mb-6 ${accentClass}`}>{label}</h3>
+                    {roundFixtures.length === 0 ? (
+                      <p className="text-white/30 font-condensed uppercase tracking-widest text-xs text-center py-6">
+                        {roundKey === 'wc_QF' ? 'Complete all group fixtures then generate QF' :
+                         roundKey === 'wc_SF' ? 'Complete QF matches then generate SF' :
+                         'Complete SF matches then generate the Final'}
+                      </p>
+                    ) : (
+                      <div className={`grid gap-4 ${isFinal ? 'max-w-md mx-auto grid-cols-1' : 'grid-cols-1 md:grid-cols-2'}`}>
+                        {Array.from(ties.entries()).map(([key, legs]) => {
+                          const p1Id = legs[0].homeId;
+                          const p2Id = legs[0].awayId;
+                          const allPlayed = legs.every(l => l.status === 'played');
+                          const winnerId = allPlayed ? getWcTieWinner(p1Id, p2Id, roundKey) : null;
+                          let p1Goals = 0, p2Goals = 0;
+                          legs.forEach(f => {
+                            if (f.homeId === p1Id) { p1Goals += f.homeScore || 0; p2Goals += f.awayScore || 0; }
+                            else { p2Goals += f.homeScore || 0; p1Goals += f.awayScore || 0; }
+                          });
+                          return (
+                            <div key={key} className="bg-black/30 rounded-xl overflow-hidden border border-white/5">
+                              <div className="flex items-center justify-between px-4 py-2 bg-white/5 border-b border-white/5">
+                                {!isFinal && (
+                                  <span className="font-condensed text-[9px] uppercase tracking-widest text-white/30">Agg: {p1Goals} - {p2Goals}</span>
+                                )}
+                                {winnerId && (
+                                  <span className={`font-condensed text-[9px] uppercase tracking-widest ${accentClass} ml-auto`}>
+                                    {allPlayers.find(p => p.id === winnerId)?.name || winnerId} Advances ✓
+                                  </span>
+                                )}
+                              </div>
+                              {legs.sort((a, b) => a.matchday - b.matchday).map(f => (
+                                <div key={f.id} className="px-4 py-3 border-b border-white/5 last:border-0">
+                                  {!isFinal && <div className="text-[8px] font-condensed uppercase tracking-widest text-white/30 mb-2">Leg {f.matchday}</div>}
+                                  <div className="flex items-center gap-3">
+                                    <div className="flex-1 text-right font-display text-sm">{f.homeName}</div>
+                                    <div className="w-20 flex-shrink-0 text-center">
+                                      {f.status === 'played' ? (
+                                        <div className="font-display text-lg bg-white/10 px-2 py-1 rounded-lg">
+                                          <span className={f.homeScore! > f.awayScore! ? 'text-green-400' : f.homeScore === f.awayScore ? 'text-white' : 'text-white/40'}>{f.homeScore}</span>
+                                          <span className="text-white/20 mx-0.5">-</span>
+                                          <span className={f.awayScore! > f.homeScore! ? 'text-green-400' : f.homeScore === f.awayScore ? 'text-white' : 'text-white/40'}>{f.awayScore}</span>
+                                        </div>
+                                      ) : (
+                                        <div className="font-condensed text-xs text-white/30 bg-white/5 px-2 py-1.5 rounded-lg">VS</div>
+                                      )}
+                                    </div>
+                                    <div className="flex-1 text-left font-display text-sm">{f.awayName}</div>
+                                  </div>
+                                  {isAdmin && (
+                                    <button
+                                      onClick={() => { setPlayoffEditingFixture(f.id); setPlayoffScores({ home: f.homeScore ?? 0, away: f.awayScore ?? 0 }); }}
+                                      className={`mt-2 text-[10px] font-condensed ${accentClass} opacity-50 uppercase tracking-widest hover:opacity-100 transition-opacity text-center w-full block`}
+                                    >
+                                      {f.status === 'played' ? 'Edit Score' : 'Enter Score'}
+                                    </button>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              };
+
+              const finalFixture = allFixtures.find(f =>
+                f.competition === 'wc' && f.round === 'wc_F' && f.seasonId === currentSeasonId && f.status === 'played'
+              );
+              const champId = finalFixture
+                ? (finalFixture.homeScore! > finalFixture.awayScore! ? finalFixture.homeId : finalFixture.awayId)
+                : null;
+
+              return (
+                <div className="mt-12 space-y-8">
+                  <div className="text-center">
+                    <h3 className="font-display text-3xl uppercase tracking-wider">Knockout <span className="text-pl-cyan">Stage</span></h3>
+                  </div>
+                  {isAdmin && (
+                    <div className="flex flex-wrap justify-center gap-3">
+                      <button onClick={generateWcQF} disabled={loading}
+                        className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 px-4 py-2 rounded-xl font-condensed font-bold uppercase tracking-widest hover:bg-emerald-500 hover:text-white transition-colors disabled:opacity-50 text-xs">
+                        Generate Quarter-Finals
+                      </button>
+                      <button onClick={generateWcSF} disabled={loading}
+                        className="bg-amber-500/20 text-amber-400 border border-amber-500/50 px-4 py-2 rounded-xl font-condensed font-bold uppercase tracking-widest hover:bg-amber-500 hover:text-white transition-colors disabled:opacity-50 text-xs">
+                        Generate Semi-Finals
+                      </button>
+                      <button onClick={generateWcFinal} disabled={loading}
+                        className="bg-yellow-500/20 text-yellow-400 border border-yellow-500/50 px-4 py-2 rounded-xl font-condensed font-bold uppercase tracking-widest hover:bg-yellow-500 hover:text-white transition-colors disabled:opacity-50 text-xs">
+                        Generate Final 🏆
+                      </button>
+                    </div>
+                  )}
+                  {renderWcRound('wc_QF', 'Quarter-Finals', 'text-emerald-400', 'border-emerald-400/20', false)}
+                  {renderWcRound('wc_SF', 'Semi-Finals', 'text-amber-400', 'border-amber-400/20', false)}
+                  {renderWcRound('wc_F', 'The Final', 'text-yellow-400', 'border-yellow-400/30', true)}
+                  {champId && (
+                    <div className="text-center glass rounded-2xl p-10 border-2 border-yellow-400/40 bg-yellow-400/5">
+                      <div className="text-6xl mb-4">🏆</div>
+                      <div className="text-yellow-400 font-condensed uppercase tracking-widest text-xs mb-3">World Cup Champion</div>
+                      <div className="font-display text-5xl uppercase tracking-wider">{allPlayers.find(p => p.id === champId)?.name || ''}</div>
+                      {allPlayers.find(p => p.id === champId)?.wcTeam && (
+                        <div className="text-white/40 font-condensed text-sm mt-2 uppercase tracking-widest">{allPlayers.find(p => p.id === champId)?.wcTeam}</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </motion.div>
         )}
+
 
         {activeTab === 'admin' && isAdmin && (
           <div className="space-y-12 pb-20">
