@@ -4174,13 +4174,21 @@ function LeagueApp() {
                         )}
                       </div>
                       {!p.wcTeam ? (
-                        <button
-                          onClick={() => pickWcTeam(p.id)}
-                          disabled={loading}
-                          className="bg-pl-cyan text-pl-ink px-4 py-2 rounded-full font-condensed font-bold uppercase tracking-widest hover:scale-105 transition-transform disabled:opacity-50"
-                        >
-                          Pick Team
-                        </button>
+                        // Allow picking if user is admin, OR if the player's name corresponds to the current logged-in user
+                        (isAdmin || (user && (
+                          p.name.toLowerCase().includes((user.displayName || '').toLowerCase()) ||
+                          p.name.toLowerCase().includes((user.email || '').split('@')[0].toLowerCase())
+                        ))) ? (
+                          <button
+                            onClick={() => pickWcTeam(p.id)}
+                            disabled={loading}
+                            className="bg-pl-cyan text-pl-ink px-4 py-2 rounded-full font-condensed font-bold uppercase tracking-widest hover:scale-105 transition-transform disabled:opacity-50 text-xs"
+                          >
+                            Pick Team
+                          </button>
+                        ) : (
+                          <span className="text-white/20 font-condensed uppercase tracking-widest text-[10px]">Awaiting pick</span>
+                        )
                       ) : (
                         isAdmin && (
                           <button
