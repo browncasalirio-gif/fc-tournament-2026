@@ -4157,11 +4157,11 @@ function LeagueApp() {
             </div>
 
             {/* Randomizer Tool */}
-            {user && players.filter(p => p.active !== false).length > 0 && (
+            {allPlayers.filter(p => p.active !== false).length > 0 && (
               <div className="glass p-6 rounded-2xl border-l-4 border-pl-cyan mb-8">
                 <h3 className="font-display text-xl uppercase tracking-wider mb-4">Team Randomizer</h3>
                 <div className="space-y-4">
-                  {players.filter(p => p.active !== false).map(p => (
+                  {allPlayers.filter(p => p.active !== false).sort((a, b) => a.name.localeCompare(b.name)).map(p => (
                     <div key={p.id} className="flex items-center justify-between bg-black/20 p-4 rounded-xl border border-white/5">
                       <div>
                         <span className="font-condensed font-bold uppercase tracking-widest text-sm block">{p.name}</span>
