@@ -417,12 +417,8 @@ function LeagueApp() {
 
   const h2hData = useMemo(() => {
     if (!h2hPlayers.p1 || !h2hPlayers.p2 || h2hPlayers.p1 === h2hPlayers.p2) return null;
-    // Get all IDs for each player name to handle duplicates
-    const p1Name = allPlayers.find(p => p.id === h2hPlayers.p1)?.name;
-    const p2Name = allPlayers.find(p => p.id === h2hPlayers.p2)?.name;
-    if (!p1Name || !p2Name) return null;
-    const p1Ids = new Set(playerIdsByName[p1Name] || [h2hPlayers.p1]);
-    const p2Ids = new Set(playerIdsByName[p2Name] || [h2hPlayers.p2]);
+    const p1Ids = new Set([h2hPlayers.p1]);
+    const p2Ids = new Set([h2hPlayers.p2]);
     const matches = allFixtures.filter(f =>
       ((p1Ids.has(f.homeId) && p2Ids.has(f.awayId)) ||
        (p2Ids.has(f.homeId) && p1Ids.has(f.awayId))) &&
@@ -445,14 +441,11 @@ function LeagueApp() {
       return (a.deadline || '').localeCompare(b.deadline || '');
     });
     return { matches: sortedMatches, p1w, p2w, draws, p1g, p2g, p1Ids, p2Ids };
-  }, [h2hPlayers, allFixtures, currentSeasonId, allPlayers, playerIdsByName]);
+  }, [h2hPlayers, allFixtures, currentSeasonId]);
 
   const soloPlayerData = useMemo(() => {
     if (!h2hSoloPlayer) return null;
-    // Get all IDs for this player name to handle duplicates
-    const pName = allPlayers.find(p => p.id === h2hSoloPlayer)?.name;
-    if (!pName) return null;
-    const pIds = new Set(playerIdsByName[pName] || [h2hSoloPlayer]);
+    const pIds = new Set([h2hSoloPlayer]);
     const matches = allFixtures.filter(f =>
       (pIds.has(f.homeId) || pIds.has(f.awayId)) &&
       f.seasonId === currentSeasonId &&
@@ -2404,6 +2397,12 @@ function LeagueApp() {
     });
   }, [allPlayers]);
 
+  const h2hSelectablePlayers = useMemo(() => {
+    return allPlayers
+      .filter(p => p.active !== false)
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [allPlayers]);
+
 
 
   const tableData = useMemo<TableRow[]>(() => {
@@ -3379,7 +3378,11 @@ function LeagueApp() {
                         className="flex-1 bg-pl-ink border border-white/10 rounded px-4 py-3 text-sm focus:border-pl-cyan outline-none transition-colors"
                       >
                         <option value="">Player 1</option>
-                        {[...allPlayers].filter((p, i, arr) => arr.findIndex(x => x.name === p.name) === i).sort((a, b) => a.name.localeCompare(b.name)).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                        {h2hSelectablePlayers.map(p => (
+                          <option key={p.id} value={p.id}>
+                            {formatWcDisplayName(p.name, p.wcTeam)}
+                          </option>
+                        ))}
                       </select>
                       <div className="font-display text-xl text-white/20">VS</div>
                       <select
@@ -3388,7 +3391,11 @@ function LeagueApp() {
                         className="flex-1 bg-pl-ink border border-white/10 rounded px-4 py-3 text-sm focus:border-pl-cyan outline-none transition-colors"
                       >
                         <option value="">Player 2</option>
-                        {[...allPlayers].filter((p, i, arr) => arr.findIndex(x => x.name === p.name) === i).sort((a, b) => a.name.localeCompare(b.name)).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                        {h2hSelectablePlayers.map(p => (
+                          <option key={p.id} value={p.id}>
+                            {formatWcDisplayName(p.name, p.wcTeam)}
+                          </option>
+                        ))}
                       </select>
                     </div>
                   </div>
@@ -3526,7 +3533,11 @@ function LeagueApp() {
                         className="w-full bg-pl-ink border border-white/10 rounded px-4 py-3 text-sm focus:border-pl-cyan outline-none transition-colors"
                       >
                         <option value="">Choose a player...</option>
-                        {[...allPlayers].filter((p, i, arr) => arr.findIndex(x => x.name === p.name) === i).sort((a, b) => a.name.localeCompare(b.name)).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                        {h2hSelectablePlayers.map(p => (
+                          <option key={p.id} value={p.id}>
+                            {formatWcDisplayName(p.name, p.wcTeam)}
+                          </option>
+                        ))}
                       </select>
                     </div>
 
