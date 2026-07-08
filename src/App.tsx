@@ -289,6 +289,14 @@ function LeagueApp() {
   const [editingChampion, setEditingChampion] = useState<number | null>(null);
   const [newChampion, setNewChampion] = useState<Champion>({ season: '', winner: '', runnerUp: '', year: '' });
 
+  // WC Seeding Manager state (session-only, resets on page reload)
+  const [wcSeedList, setWcSeedList] = useState<string[]>(["Henryjr_7", "Ebo2gee", "Jeffshiestyy", "Enlightened_view"]);
+  const [wcPotAList, setWcPotAList] = useState<string[]>(["Mexico", "Canada", "USA", "Croatia", "Ghana", "Uruguay", "Japan", "Senegal"]);
+  const [wcPotBList, setWcPotBList] = useState<string[]>(["Brazil", "France", "England", "Spain", "Portugal", "Argentina", "Netherlands", "Morocco", "Germany", "Sweden", "Belgium", "Ivory Coast"]);
+  const [newSeedInput, setNewSeedInput] = useState('');
+  const [newPotAInput, setNewPotAInput] = useState('');
+  const [newPotBInput, setNewPotBInput] = useState('');
+
   const fixtures = useMemo(() => {
     return allFixtures.filter(f => f.competition === 'league' && f.seasonId === currentSeasonId);
   }, [allFixtures, currentSeasonId]);
@@ -675,18 +683,9 @@ function LeagueApp() {
     "Manchester United", "Liverpool", "Manchester City", "Arsenal"
   ];
 
-  const WC_POT_A = [
-    "Mexico", "Canada", "USA", "Croatia", "Ghana", "Uruguay", "Japan", "Senegal"
-  ];
-
-  const WC_POT_B = [
-    "Brazil", "France", "England", "Spain", "Portugal", "Argentina", 
-    "Netherlands", "Morocco", "Germany", "Sweden", "Belgium", "Ivory Coast"
-  ];
-
-  const WC_SEEDS = [
-    "Henryjr_7", "Ebo2gee", "Jeffshiestyy", "Enlightened_view"
-  ];
+  const WC_POT_A = wcPotAList;
+  const WC_POT_B = wcPotBList;
+  const WC_SEEDS = wcSeedList;
 
   const generateSeason = async () => {
     if (!isAdmin || !user || !currentSeasonId) {
@@ -4577,6 +4576,197 @@ function LeagueApp() {
               </div>
             </div>
 
+            {/* WC Seeding Manager */}
+            <div className="glass p-8 rounded-2xl border-l-4 border-amber-400">
+              <div className="flex items-center gap-4 mb-6">
+                <div className="w-12 h-12 bg-amber-400/10 rounded-xl flex items-center justify-center">
+                  <Trophy className="text-amber-400" size={24} />
+                </div>
+                <div>
+                  <h2 className="font-display text-2xl uppercase tracking-wider">WC <span className="text-amber-400">Seeding Manager</span></h2>
+                  <p className="text-white/40 font-condensed uppercase tracking-widest text-[10px]">Edit seeded players & pot lists, then use Pick Team in the WC tab</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+                {/* Seeded Players */}
+                <div className="space-y-3">
+                  <h3 className="font-condensed font-bold uppercase tracking-widest text-xs text-amber-400 flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-amber-400 inline-block"></span>
+                    Seeded Players (Pot A)
+                  </h3>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newSeedInput}
+                      onChange={e => setNewSeedInput(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' && newSeedInput.trim()) {
+                          setWcSeedList(prev => [...prev, newSeedInput.trim()]);
+                          setNewSeedInput('');
+                        }
+                      }}
+                      placeholder="Player name..."
+                      className="flex-1 bg-pl-ink border border-white/10 rounded-xl px-3 py-2 text-xs focus:border-amber-400 outline-none transition-colors"
+                    />
+                    <button
+                      onClick={() => {
+                        if (!newSeedInput.trim()) return;
+                        setWcSeedList(prev => [...prev, newSeedInput.trim()]);
+                        setNewSeedInput('');
+                      }}
+                      className="bg-amber-400 text-pl-ink px-3 py-2 rounded-xl font-condensed font-bold text-xs uppercase tracking-widest hover:brightness-110 transition-all"
+                    >Add</button>
+                  </div>
+                  <div className="space-y-1 max-h-48 overflow-y-auto no-scrollbar">
+                    {wcSeedList.length === 0 && (
+                      <p className="text-[10px] text-white/20 uppercase tracking-widest text-center py-3">No seeded players</p>
+                    )}
+                    {wcSeedList.map((name, i) => (
+                      <div key={i} className="flex items-center justify-between p-2 rounded-lg bg-amber-400/5 border border-amber-400/10">
+                        <span className="text-xs font-condensed font-bold uppercase tracking-widest">{name}</span>
+                        <button
+                          onClick={() => setWcSeedList(prev => prev.filter((_, j) => j !== i))}
+                          className="text-white/30 hover:text-red-400 transition-colors ml-2 flex-shrink-0"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Pot A Teams */}
+                <div className="space-y-3">
+                  <h3 className="font-condensed font-bold uppercase tracking-widest text-xs text-pl-cyan flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-pl-cyan inline-block"></span>
+                    Pot A Teams
+                  </h3>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newPotAInput}
+                      onChange={e => setNewPotAInput(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' && newPotAInput.trim()) {
+                          setWcPotAList(prev => [...prev, newPotAInput.trim()]);
+                          setNewPotAInput('');
+                        }
+                      }}
+                      placeholder="Team name..."
+                      className="flex-1 bg-pl-ink border border-white/10 rounded-xl px-3 py-2 text-xs focus:border-pl-cyan outline-none transition-colors"
+                    />
+                    <button
+                      onClick={() => {
+                        if (!newPotAInput.trim()) return;
+                        setWcPotAList(prev => [...prev, newPotAInput.trim()]);
+                        setNewPotAInput('');
+                      }}
+                      className="bg-pl-cyan text-pl-ink px-3 py-2 rounded-xl font-condensed font-bold text-xs uppercase tracking-widest hover:brightness-110 transition-all"
+                    >Add</button>
+                  </div>
+                  <div className="space-y-1 max-h-48 overflow-y-auto no-scrollbar">
+                    {wcPotAList.length === 0 && (
+                      <p className="text-[10px] text-white/20 uppercase tracking-widest text-center py-3">No teams in Pot A</p>
+                    )}
+                    {wcPotAList.map((team, i) => (
+                      <div key={i} className="flex items-center justify-between p-2 rounded-lg bg-pl-cyan/5 border border-pl-cyan/10">
+                        <span className="text-xs font-condensed uppercase tracking-widest">{team}</span>
+                        <button
+                          onClick={() => setWcPotAList(prev => prev.filter((_, j) => j !== i))}
+                          className="text-white/30 hover:text-red-400 transition-colors ml-2 flex-shrink-0"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Pot B Teams */}
+                <div className="space-y-3">
+                  <h3 className="font-condensed font-bold uppercase tracking-widest text-xs text-pl-pink flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-pl-pink inline-block"></span>
+                    Pot B Teams
+                  </h3>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newPotBInput}
+                      onChange={e => setNewPotBInput(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' && newPotBInput.trim()) {
+                          setWcPotBList(prev => [...prev, newPotBInput.trim()]);
+                          setNewPotBInput('');
+                        }
+                      }}
+                      placeholder="Team name..."
+                      className="flex-1 bg-pl-ink border border-white/10 rounded-xl px-3 py-2 text-xs focus:border-pl-pink outline-none transition-colors"
+                    />
+                    <button
+                      onClick={() => {
+                        if (!newPotBInput.trim()) return;
+                        setWcPotBList(prev => [...prev, newPotBInput.trim()]);
+                        setNewPotBInput('');
+                      }}
+                      className="bg-pl-pink text-pl-ink px-3 py-2 rounded-xl font-condensed font-bold text-xs uppercase tracking-widest hover:brightness-110 transition-all"
+                    >Add</button>
+                  </div>
+                  <div className="space-y-1 max-h-48 overflow-y-auto no-scrollbar">
+                    {wcPotBList.length === 0 && (
+                      <p className="text-[10px] text-white/20 uppercase tracking-widest text-center py-3">No teams in Pot B</p>
+                    )}
+                    {wcPotBList.map((team, i) => (
+                      <div key={i} className="flex items-center justify-between p-2 rounded-lg bg-pl-pink/5 border border-pl-pink/10">
+                        <span className="text-xs font-condensed uppercase tracking-widest">{team}</span>
+                        <button
+                          onClick={() => setWcPotBList(prev => prev.filter((_, j) => j !== i))}
+                          className="text-white/30 hover:text-red-400 transition-colors ml-2 flex-shrink-0"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Pick Team on behalf of a player */}
+              <div className="mt-6 pt-6 border-t border-white/10">
+                <h3 className="font-condensed font-bold uppercase tracking-widest text-xs text-white/60 mb-3">
+                  Proxy Pick — assign a team on behalf of a player
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {allPlayers
+                    .filter(p => p.active !== false && !p.wcTeam)
+                    .sort((a, b) => a.name.localeCompare(b.name))
+                    .map(p => (
+                      <div key={p.id} className="flex items-center justify-between bg-black/20 px-4 py-3 rounded-xl border border-white/5">
+                        <div>
+                          <span className="font-condensed font-bold uppercase tracking-widest text-xs block">{p.name}</span>
+                          <span className="text-[10px] text-white/30 font-condensed uppercase tracking-widest">
+                            {wcSeedList.includes(p.name.split(' (')[0]) ? '🌟 Seeded → Pot A' : 'Pot B'}
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => pickWcTeam(p.id)}
+                          disabled={loading}
+                          className="bg-amber-400 text-pl-ink px-4 py-1.5 rounded-full font-condensed font-bold uppercase tracking-widest hover:scale-105 transition-transform disabled:opacity-50 text-[10px]"
+                        >
+                          Pick Team
+                        </button>
+                      </div>
+                    ))
+                  }
+                  {allPlayers.filter(p => p.active !== false && !p.wcTeam).length === 0 && (
+                    <p className="text-[10px] text-white/20 uppercase tracking-widest col-span-2 text-center py-4">All active players have been assigned a team</p>
+                  )}
+                </div>
+              </div>
+            </div>
+
             {/* Player Management */}
             <div className="grid lg:grid-cols-1 gap-8">
               {/* Player Management */}
@@ -4588,6 +4778,7 @@ function LeagueApp() {
                   <div>
                     <h2 className="font-display text-2xl uppercase tracking-wider">Player <span className="text-emerald-400">Database</span></h2>
                     <p className="text-white/40 font-condensed uppercase tracking-widest text-[10px]">Global list of all league participants</p>
+
                   </div>
                 </div>
 
