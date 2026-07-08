@@ -168,8 +168,7 @@ service cloud.firestore {
     }
 
     function canPickWcTeam() {
-      return isAuthenticated() &&
-             request.resource.data.diff(resource.data).affectedKeys().hasOnly(['wcTeam', 'wcPot']) &&
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['wcTeam', 'wcPot']) &&
              (!('wcTeam' in resource.data) || resource.data.wcTeam == null) &&
              (!('wcPot' in resource.data) || resource.data.wcPot == null) &&
              request.resource.data.wcTeam is string &&

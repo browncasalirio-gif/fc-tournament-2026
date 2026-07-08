@@ -4310,17 +4310,13 @@ function LeagueApp() {
                         )}
                       </div>
                       {!p.wcTeam ? (
-                        user ? (
-                          <button
-                            onClick={() => pickWcTeam(p.id)}
-                            disabled={loading}
-                            className="bg-pl-cyan text-pl-ink px-4 py-2 rounded-full font-condensed font-bold uppercase tracking-widest hover:scale-105 transition-transform disabled:opacity-50 text-xs"
-                          >
-                            Pick Team
-                          </button>
-                        ) : (
-                          <span className="text-white/20 font-condensed uppercase tracking-widest text-[10px]">Sign in to pick</span>
-                        )
+                        <button
+                          onClick={() => pickWcTeam(p.id)}
+                          disabled={loading}
+                          className="bg-pl-cyan text-pl-ink px-4 py-2 rounded-full font-condensed font-bold uppercase tracking-widest hover:scale-105 transition-transform disabled:opacity-50 text-xs"
+                        >
+                          Pick Team
+                        </button>
                       ) : (
                         isAdmin && (
                           <button
