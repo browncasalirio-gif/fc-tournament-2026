@@ -314,6 +314,10 @@ function LeagueApp() {
     return allFixtures.filter(f => f.competition === 'league' && f.seasonId === currentSeasonId);
   }, [allFixtures, currentSeasonId]);
 
+  const seasonFixtures = useMemo(() => {
+    return allFixtures.filter(f => f.seasonId === currentSeasonId);
+  }, [allFixtures, currentSeasonId]);
+
   const uefaFixtures = useMemo(() => {
     return allFixtures.filter(f => f.competition === 'uefa' && f.seasonId === currentSeasonId);
   }, [allFixtures, currentSeasonId]);
@@ -722,9 +726,8 @@ function LeagueApp() {
         return { ...p, club: assignedTeam };
       });
 
-      // Clear existing league fixtures for THIS season
-      const existingFixtures = fixtures.filter(f => f.competition === 'league' && f.seasonId === currentSeasonId);
-      existingFixtures.forEach(f => {
+      // Starting a new schedule means this season's old results should not carry over.
+      seasonFixtures.forEach(f => {
         batch.delete(doc(db, 'fixtures', f.id));
       });
 
@@ -818,7 +821,7 @@ function LeagueApp() {
       }
 
       await batch.commit();
-      showToast("Double Round Robin Season generated with randomized teams!");
+      showToast(`New season fixtures generated! Removed ${seasonFixtures.length} old fixture(s).`);
     } catch (err) {
       console.error("Generation failed", err);
       showToast(err instanceof Error ? err.message : "Generation failed", 'error');
@@ -2042,11 +2045,9 @@ function LeagueApp() {
     try {
       setLoading(true);
       const batch = writeBatch(db);
-      fixtures.forEach(f => batch.delete(doc(db, 'fixtures', f.id)));
-      uefaFixtures.forEach(f => batch.delete(doc(db, 'fixtures', f.id)));
-      playoffFixtures.forEach(f => batch.delete(doc(db, 'fixtures', f.id)));
+      seasonFixtures.forEach(f => batch.delete(doc(db, 'fixtures', f.id)));
       await batch.commit();
-      showToast("League reset successfully");
+      showToast("All current season fixtures reset successfully");
     } catch (err) {
       console.error("Reset failed", err);
       showToast("Reset failed", 'error');
