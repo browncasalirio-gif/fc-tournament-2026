@@ -339,12 +339,28 @@ function LeagueApp() {
     return player ? formatWcDisplayName(player.name, player.wcTeam) : fallbackName;
   }, [allPlayers]);
 
+  const getWcGroupFromFixtures = useCallback((playerId: string): Player['wcGroup'] | null => {
+    const fixture = allFixtures.find(f =>
+      f.competition === 'wc' &&
+      f.seasonId === currentSeasonId &&
+      f.round?.startsWith('group_') &&
+      (f.homeId === playerId || f.awayId === playerId)
+    );
+    const group = fixture?.round?.replace('group_', '');
+    return group && ['A', 'B', 'C', 'D'].includes(group) ? group as Player['wcGroup'] : null;
+  }, [allFixtures, currentSeasonId]);
+
   const wcTableData = useMemo(() => {
     const groups: Record<string, TableRow[]> = { 'A': [], 'B': [], 'C': [], 'D': [] };
 
     // Initialize stats for each group
     ['A', 'B', 'C', 'D'].forEach(g => {
-      const groupPlayers = allPlayers.filter(p => p.wcGroup === g);
+      const groupPlayerIds = new Set(
+        allFixtures
+          .filter(f => f.competition === 'wc' && f.round === `group_${g}` && f.seasonId === currentSeasonId)
+          .flatMap(f => [f.homeId, f.awayId])
+      );
+      const groupPlayers = allPlayers.filter(p => p.wcGroup === g || groupPlayerIds.has(p.id));
       const stats: Record<string, TableRow> = {};
 
       groupPlayers.forEach(p => {
@@ -917,11 +933,27 @@ function LeagueApp() {
     const selectedTeam = availableTeams[randomIndex];
     try {
       setLoading(true);
+      const batch = writeBatch(db);
       const playerRef = doc(db, 'players', player.id);
-      await updateDoc(playerRef, {
+      const inferredGroup = player.wcGroup || getWcGroupFromFixtures(player.id);
+      const playerUpdates: Record<string, any> = {
         wcTeam: selectedTeam,
         wcPot: potLabel
-      });
+      };
+      if (inferredGroup) playerUpdates.wcGroup = inferredGroup;
+      batch.update(playerRef, playerUpdates);
+
+      const displayName = formatWcDisplayName(player.name, selectedTeam);
+      allFixtures
+        .filter(f => f.competition === 'wc' && f.seasonId === currentSeasonId && (f.homeId === player.id || f.awayId === player.id))
+        .forEach(f => {
+          const updates: Record<string, any> = {};
+          if (f.homeId === player.id) updates.homeName = displayName;
+          if (f.awayId === player.id) updates.awayName = displayName;
+          batch.update(doc(db, 'fixtures', f.id), updates);
+        });
+
+      await batch.commit();
       showToast(`You picked ${selectedTeam}!`, "success");
     } catch (err) {
       console.error("Failed to assign WC team", err);
@@ -942,13 +974,19 @@ function LeagueApp() {
     try {
       setLoading(true);
       const playerRef = doc(db, 'players', player.id);
-      await updateDoc(playerRef, {
+      const hasWcFixtures = allFixtures.some(f =>
+        f.competition === 'wc' &&
+        f.seasonId === currentSeasonId &&
+        (f.homeId === player.id || f.awayId === player.id)
+      );
+      const updates: Record<string, any> = {
         name: baseName,
         wcTeam: null,
-        wcPot: null,
-        wcGroup: null
-      });
-      showToast(`Reset team for ${baseName}`, "success");
+        wcPot: null
+      };
+      if (!hasWcFixtures) updates.wcGroup = null;
+      await updateDoc(playerRef, updates);
+      showToast(hasWcFixtures ? `Cleared team for ${baseName}. Group spot kept.` : `Reset team for ${baseName}`, "success");
     } catch (err) {
       console.error("Failed to reset WC team", err);
       showToast("Failed to reset team", "error");
