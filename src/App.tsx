@@ -4585,79 +4585,6 @@ function LeagueApp() {
               })}
             </div>
 
-            {/* WC Group Stage Fixtures */}
-            {allFixtures.filter(f => f.competition === 'wc' && f.round.startsWith('group_') && f.seasonId === currentSeasonId).length > 0 && (
-              <div className="mt-12 space-y-6">
-                <div className="text-center">
-                  <h3 className="font-display text-2xl uppercase tracking-wider">Group Stage <span className="text-pl-cyan">Fixtures</span></h3>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {[1, 2, 3, 4, 5, 6].map(matchday => {
-                    const mdFixtures = allFixtures.filter(f => f.competition === 'wc' && f.round.startsWith('group_') && f.matchday === matchday && f.seasonId === currentSeasonId);
-                    if (mdFixtures.length === 0) return null;
-
-                    return (
-                      <div key={matchday} className="glass p-6 rounded-2xl border border-white/5">
-                        <div className="flex items-center justify-between mb-6">
-                          <h4 className="font-condensed font-bold text-sm uppercase tracking-widest text-pl-cyan">
-                            Matchday {matchday}
-                          </h4>
-                          {mdFixtures[0].deadline && (
-                            <span className="text-[10px] font-condensed uppercase tracking-widest text-white/40 bg-white/5 px-2 py-1 rounded">
-                              Deadline: {new Date(mdFixtures[0].deadline).toLocaleDateString()}
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="space-y-3">
-                          {mdFixtures.map(fixture => (
-                            <div key={fixture.id} className="bg-black/20 rounded-xl p-3 border border-white/5 hover:bg-white/5 transition-colors relative overflow-hidden group">
-                              <div className="absolute top-0 right-0 bg-white/5 text-white/40 px-2 py-0.5 rounded-bl-lg font-condensed text-[8px] uppercase tracking-widest">
-                                Group {fixture.round.split('_')[1]}
-                              </div>
-                              <div className="flex items-center justify-between gap-4 mt-2">
-                                <div className="flex-1 text-right">
-                                  <div className="font-display text-sm">{getWcFixtureDisplayName(fixture.homeId, fixture.homeName)}</div>
-                                </div>
-                                <div className="flex-shrink-0 w-16 text-center">
-                                  {fixture.status === 'played' ? (
-                                    <div className="font-display text-xl bg-white/10 px-3 py-1 rounded-lg">
-                                      <span className={fixture.homeScore! > fixture.awayScore! ? 'text-green-400' : fixture.homeScore === fixture.awayScore ? 'text-white' : 'text-white/40'}>{fixture.homeScore}</span>
-                                      <span className="text-white/20 mx-1">-</span>
-                                      <span className={fixture.awayScore! > fixture.homeScore! ? 'text-green-400' : fixture.homeScore === fixture.awayScore ? 'text-white' : 'text-white/40'}>{fixture.awayScore}</span>
-                                    </div>
-                                  ) : (
-                                    <div className="font-condensed text-xs text-white/40 bg-white/5 px-3 py-1.5 rounded-lg">VS</div>
-                                  )}
-                                </div>
-                                <div className="flex-1 text-left">
-                                  <div className="font-display text-sm">{getWcFixtureDisplayName(fixture.awayId, fixture.awayName)}</div>
-                                </div>
-                              </div>
-
-                              {isAdmin && (
-                                <button
-                                  onClick={() => {
-                                    // Use the same modal logic as playoffs for simplicity
-                                    setPlayoffEditingFixture(fixture.id);
-                                    setPlayoffScores({ home: fixture.homeScore ?? 0, away: fixture.awayScore ?? 0 });
-                                  }}
-                                  className="mt-3 text-[10px] font-condensed text-pl-cyan opacity-60 uppercase tracking-widest hover:opacity-100 transition-colors text-center w-full block"
-                                >
-                                  {fixture.status === 'played' ? 'Edit Score' : 'Enter Score'}
-                                </button>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
             {/* WC Knockout Stage */}
             {(() => {
               const hasGroupFixtures = allFixtures.some(f =>
@@ -4766,6 +4693,22 @@ function LeagueApp() {
                 <div className="mt-12 space-y-8">
                   <div className="text-center">
                     <h3 className="font-display text-3xl uppercase tracking-wider">Knockout <span className="text-pl-cyan">Stage</span></h3>
+                  </div>
+                  <div className="glass p-5 rounded-2xl border border-pl-cyan/20">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                      {[
+                        { title: 'QF1', match: '1st Group A vs 2nd Group B', path: 'Winner plays QF2 winner' },
+                        { title: 'QF2', match: '1st Group C vs 2nd Group D', path: 'Winner plays QF1 winner' },
+                        { title: 'QF3', match: '1st Group B vs 2nd Group A', path: 'Winner plays QF4 winner' },
+                        { title: 'QF4', match: '1st Group D vs 2nd Group C', path: 'Winner plays QF3 winner' },
+                      ].map(item => (
+                        <div key={item.title} className="bg-black/20 rounded-xl p-3 border border-white/5">
+                          <div className="text-[10px] font-condensed font-bold uppercase tracking-widest text-pl-cyan mb-1">{item.title}</div>
+                          <div className="font-bold text-xs text-white/80">{item.match}</div>
+                          <div className="text-[9px] font-condensed uppercase tracking-widest text-white/30 mt-2">{item.path}</div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                   {isAdmin && (
                     <div className="flex flex-wrap justify-center gap-3">
