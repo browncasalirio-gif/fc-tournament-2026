@@ -157,6 +157,17 @@ type TableRow = {
   form: string[];
 };
 
+const stripWcSuffix = (name: string) => name.split(' (')[0];
+const getWcTeamCode = (team?: string | null) => {
+  if (!team) return '';
+  const letters = team.replace(/[^a-z]/gi, '').slice(0, 3).toUpperCase();
+  return letters || team.slice(0, 3).toUpperCase();
+};
+const formatWcDisplayName = (name: string, team?: string | null) => {
+  const code = getWcTeamCode(team);
+  return code ? `${stripWcSuffix(name)} (${code})` : stripWcSuffix(name);
+};
+
 // Error Boundary Component
 class ErrorBoundary extends React.Component<any, any> {
   state = { hasError: false, error: null };
@@ -311,6 +322,11 @@ function LeagueApp() {
     return allFixtures.filter(f => f.competition === 'playoff' && f.seasonId === currentSeasonId);
   }, [allFixtures, currentSeasonId]);
 
+  const getWcFixtureDisplayName = useCallback((playerId: string, fallbackName: string) => {
+    const player = allPlayers.find(p => p.id === playerId);
+    return player ? formatWcDisplayName(player.name, player.wcTeam) : fallbackName;
+  }, [allPlayers]);
+
   const wcTableData = useMemo(() => {
     const groups: Record<string, TableRow[]> = { 'A': [], 'B': [], 'C': [], 'D': [] };
     
@@ -322,7 +338,7 @@ function LeagueApp() {
       groupPlayers.forEach(p => {
         stats[p.id] = {
           id: p.id,
-          name: p.name,
+          name: formatWcDisplayName(p.name, p.wcTeam),
           club: p.wcTeam || p.club,
           p: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, pts: 0,
           form: []
@@ -1105,8 +1121,8 @@ function LeagueApp() {
               matchday: matchdayOffset,
               homeId: h.id,
               awayId: a.id,
-              homeName: h.name,
-              awayName: a.name,
+              homeName: formatWcDisplayName(h.name, h.wcTeam),
+              awayName: formatWcDisplayName(a.name, a.wcTeam),
               homeScore: null,
               awayScore: null,
               status: 'pending',
@@ -1130,8 +1146,8 @@ function LeagueApp() {
               matchday: matchdayOffset,
               homeId: h.id,
               awayId: a.id,
-              homeName: h.name,
-              awayName: a.name,
+              homeName: formatWcDisplayName(h.name, h.wcTeam),
+              awayName: formatWcDisplayName(a.name, a.wcTeam),
               homeScore: null,
               awayScore: null,
               status: 'pending',
@@ -1206,7 +1222,10 @@ function LeagueApp() {
         { h: qualifiers['D'].first, a: qualifiers['C'].second },
       ];
 
-      const getName = (id: string) => allPlayers.find(p => p.id === id)?.name || id;
+      const getName = (id: string) => {
+        const player = allPlayers.find(p => p.id === id);
+        return player ? formatWcDisplayName(player.name, player.wcTeam) : id;
+      };
       const today = new Date();
       const batch = writeBatch(db);
 
@@ -1273,7 +1292,10 @@ function LeagueApp() {
         winners.push(w);
       }
 
-      const getName = (id: string) => allPlayers.find(p => p.id === id)?.name || id;
+      const getName = (id: string) => {
+        const player = allPlayers.find(p => p.id === id);
+        return player ? formatWcDisplayName(player.name, player.wcTeam) : id;
+      };
       const today = new Date();
       const batch = writeBatch(db);
 
@@ -1341,7 +1363,10 @@ function LeagueApp() {
         finalists.push(w);
       }
 
-      const getName = (id: string) => allPlayers.find(p => p.id === id)?.name || id;
+      const getName = (id: string) => {
+        const player = allPlayers.find(p => p.id === id);
+        return player ? formatWcDisplayName(player.name, player.wcTeam) : id;
+      };
       const today = new Date();
       const deadline = new Date(today); deadline.setDate(today.getDate() + 14);
       const batch = writeBatch(db);
@@ -4275,7 +4300,7 @@ function LeagueApp() {
                   {allPlayers.filter(p => p.active !== false).sort((a, b) => a.name.localeCompare(b.name)).map(p => (
                     <div key={p.id} className="flex items-center justify-between bg-black/20 p-4 rounded-xl border border-white/5">
                       <div>
-                        <span className="font-condensed font-bold uppercase tracking-widest text-sm block">{p.name}</span>
+                        <span className="font-condensed font-bold uppercase tracking-widest text-sm block">{formatWcDisplayName(p.name, p.wcTeam)}</span>
                         {p.wcTeam ? (
                           <span className="text-emerald-400 font-condensed uppercase tracking-widest text-xs">
                             Assigned: {p.wcTeam} (Pot {p.wcPot})
@@ -4488,7 +4513,7 @@ function LeagueApp() {
                               </div>
                               <div className="flex items-center justify-between gap-4 mt-2">
                                 <div className="flex-1 text-right">
-                                  <div className="font-display text-sm">{fixture.homeName}</div>
+                                  <div className="font-display text-sm">{getWcFixtureDisplayName(fixture.homeId, fixture.homeName)}</div>
                                 </div>
                                 <div className="flex-shrink-0 w-16 text-center">
                                   {fixture.status === 'played' ? (
@@ -4502,7 +4527,7 @@ function LeagueApp() {
                                   )}
                                 </div>
                                 <div className="flex-1 text-left">
-                                  <div className="font-display text-sm">{fixture.awayName}</div>
+                                  <div className="font-display text-sm">{getWcFixtureDisplayName(fixture.awayId, fixture.awayName)}</div>
                                 </div>
                               </div>
                               
@@ -4584,7 +4609,7 @@ function LeagueApp() {
                                 )}
                                 {winnerId && (
                                   <span className={`font-condensed text-[9px] uppercase tracking-widest ${accentClass} ml-auto`}>
-                                    {allPlayers.find(p => p.id === winnerId)?.name || winnerId} Advances ✓
+                                    {getWcFixtureDisplayName(winnerId, winnerId)} Advances ✓
                                   </span>
                                 )}
                               </div>
@@ -4592,7 +4617,7 @@ function LeagueApp() {
                                 <div key={f.id} className="px-4 py-3 border-b border-white/5 last:border-0">
                                   {!isFinal && <div className="text-[8px] font-condensed uppercase tracking-widest text-white/30 mb-2">Leg {f.matchday}</div>}
                                   <div className="flex items-center gap-3">
-                                    <div className="flex-1 text-right font-display text-sm">{f.homeName}</div>
+                                    <div className="flex-1 text-right font-display text-sm">{getWcFixtureDisplayName(f.homeId, f.homeName)}</div>
                                     <div className="w-20 flex-shrink-0 text-center">
                                       {f.status === 'played' ? (
                                         <div className="font-display text-lg bg-white/10 px-2 py-1 rounded-lg">
@@ -4604,7 +4629,7 @@ function LeagueApp() {
                                         <div className="font-condensed text-xs text-white/30 bg-white/5 px-2 py-1.5 rounded-lg">VS</div>
                                       )}
                                     </div>
-                                    <div className="flex-1 text-left font-display text-sm">{f.awayName}</div>
+                                    <div className="flex-1 text-left font-display text-sm">{getWcFixtureDisplayName(f.awayId, f.awayName)}</div>
                                   </div>
                                   {isAdmin && (
                                     <button
@@ -4660,7 +4685,7 @@ function LeagueApp() {
                     <div className="text-center glass rounded-2xl p-10 border-2 border-yellow-400/40 bg-yellow-400/5">
                       <div className="text-6xl mb-4">🏆</div>
                       <div className="text-yellow-400 font-condensed uppercase tracking-widest text-xs mb-3">World Cup Champion</div>
-                      <div className="font-display text-5xl uppercase tracking-wider">{allPlayers.find(p => p.id === champId)?.name || ''}</div>
+                      <div className="font-display text-5xl uppercase tracking-wider">{getWcFixtureDisplayName(champId, champId)}</div>
                       {allPlayers.find(p => p.id === champId)?.wcTeam && (
                         <div className="text-white/40 font-condensed text-sm mt-2 uppercase tracking-widest">{allPlayers.find(p => p.id === champId)?.wcTeam}</div>
                       )}
