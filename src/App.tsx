@@ -330,6 +330,10 @@ function LeagueApp() {
     return allFixtures.filter(f => f.competition === 'wc' && f.seasonId === currentSeasonId);
   }, [allFixtures, currentSeasonId]);
 
+  const h2hMatchFixtures = useMemo(() => {
+    return wcFixtures.length > 0 ? wcFixtures : seasonFixtures;
+  }, [seasonFixtures, wcFixtures]);
+
   const getWcFixtureDisplayName = useCallback((playerId: string, fallbackName: string) => {
     const player = allPlayers.find(p => p.id === playerId);
     return player ? formatWcDisplayName(player.name, player.wcTeam) : fallbackName;
@@ -423,10 +427,9 @@ function LeagueApp() {
     if (!h2hPlayers.p1 || !h2hPlayers.p2 || h2hPlayers.p1 === h2hPlayers.p2) return null;
     const p1Ids = new Set([h2hPlayers.p1]);
     const p2Ids = new Set([h2hPlayers.p2]);
-    const matches = allFixtures.filter(f =>
+    const matches = h2hMatchFixtures.filter(f =>
       ((p1Ids.has(f.homeId) && p2Ids.has(f.awayId)) ||
-       (p2Ids.has(f.homeId) && p1Ids.has(f.awayId))) &&
-      f.seasonId === currentSeasonId
+       (p2Ids.has(f.homeId) && p1Ids.has(f.awayId)))
     );
     const played = matches.filter(f => f.status === 'played');
     let p1w = 0, p2w = 0, draws = 0, p1g = 0, p2g = 0;
@@ -445,14 +448,13 @@ function LeagueApp() {
       return (a.deadline || '').localeCompare(b.deadline || '');
     });
     return { matches: sortedMatches, p1w, p2w, draws, p1g, p2g, p1Ids, p2Ids };
-  }, [h2hPlayers, allFixtures, currentSeasonId]);
+  }, [h2hPlayers, h2hMatchFixtures]);
 
   const soloPlayerData = useMemo(() => {
     if (!h2hSoloPlayer) return null;
     const pIds = new Set([h2hSoloPlayer]);
-    const matches = allFixtures.filter(f =>
+    const matches = h2hMatchFixtures.filter(f =>
       (pIds.has(f.homeId) || pIds.has(f.awayId)) &&
-      f.seasonId === currentSeasonId &&
       f.status === 'played' &&
       (f.competition === 'league' || f.competition === 'wc')
     );
@@ -470,7 +472,7 @@ function LeagueApp() {
       else draws++;
     });
     return { matches: sorted, wins, losses, draws, gf, ga, played: sorted.length, pIds };
-  }, [h2hSoloPlayer, allFixtures, currentSeasonId]);
+  }, [h2hSoloPlayer, h2hMatchFixtures]);
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToast({ message, type });
@@ -3013,7 +3015,7 @@ function LeagueApp() {
               ) : (
                 <div className="space-y-12">
                   {/* League Section */}
-                  {fixtures.length > 0 && (
+                  {fixtures.length > 0 && wcFixtures.length === 0 && (
                     <div className="space-y-8">
                       <div className="flex items-center gap-4">
                         <div className="h-px flex-grow bg-pl-pink/30"></div>
