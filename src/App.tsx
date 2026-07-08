@@ -2257,25 +2257,12 @@ function LeagueApp() {
       return;
     }
 
-    const isReplacementSeeded = WC_SEEDS.includes(playerIn.name.split(' (')[0]);
-    const replacementPot = isReplacementSeeded ? WC_POT_A : WC_POT_B;
-    const takenTeams = new Set(
-      allPlayers
-        .filter(p => p.id !== wcSwapOutId && p.id !== wcSwapInId)
-        .map(p => p.wcTeam)
-        .filter(Boolean)
-    );
-    const availableTeams = replacementPot.filter(team => !takenTeams.has(team));
-    if (!playerIn.wcTeam && availableTeams.length === 0) {
-      showToast(`No available Pot ${isReplacementSeeded ? 'A' : 'B'} teams for ${playerIn.name}`, 'error');
-      return;
-    }
-
-    const assignedTeam = playerIn.wcTeam || availableTeams[Math.floor(Math.random() * availableTeams.length)];
-    const assignedPot = playerIn.wcPot || (isReplacementSeeded ? 'A' : 'B');
+    const assignedTeam = playerOut.wcTeam || null;
+    const assignedPot = playerOut.wcPot || null;
+    const replacementFixtureName = formatWcDisplayName(playerIn.name, assignedTeam);
 
     if (!window.confirm(
-      `Replace ${playerOut.name} with ${playerIn.name} in Group ${playerOut.wcGroup}?\n\n${playerOut.name} has no played WC matches.\n${affectedFixtures.length} pending fixture(s) will be updated.\nExisting scores between other players will stay unchanged.`
+      `Replace ${playerOut.name} with ${playerIn.name} in Group ${playerOut.wcGroup}?\n\n${playerIn.name} will take ${playerOut.name}'s full WC slot: ${assignedTeam || 'No team'}, Pot ${assignedPot || 'N/A'}, and all pending fixtures.\n${playerOut.name} has no played WC matches.\nExisting scores between other players will stay unchanged.`
     )) return;
 
     try {
@@ -2300,11 +2287,11 @@ function LeagueApp() {
         const updates: Record<string, any> = {};
         if (f.homeId === wcSwapOutId) {
           updates.homeId = wcSwapInId;
-          updates.homeName = playerIn.name;
+          updates.homeName = replacementFixtureName;
         }
         if (f.awayId === wcSwapOutId) {
           updates.awayId = wcSwapInId;
-          updates.awayName = playerIn.name;
+          updates.awayName = replacementFixtureName;
         }
         batch.update(doc(db, 'fixtures', f.id), updates);
       });
@@ -4599,7 +4586,7 @@ function LeagueApp() {
                             <option value="">Select replacement</option>
                             {replacementPlayers.map(p => (
                               <option key={p.id} value={p.id}>
-                                {p.name} - {p.wcTeam ? `${p.wcTeam} (Pot ${p.wcPot})` : 'team will be picked'}
+                                {p.name} - will inherit leaving player's WC slot
                               </option>
                             ))}
                           </select>
@@ -4613,7 +4600,7 @@ function LeagueApp() {
                         </button>
                       </div>
                       <p className="text-[10px] text-white/30 font-condensed uppercase tracking-widest mt-3">
-                        Only works if the player leaving has no played WC matches. Pending group fixtures are updated, played scores stay untouched.
+                        Only works if the player leaving has no played WC matches. The replacement inherits their group, team, pot, and pending fixtures.
                       </p>
                     </div>
                   );
