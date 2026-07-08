@@ -2401,10 +2401,31 @@ function LeagueApp() {
   }, [allPlayers]);
 
   const h2hSelectablePlayers = useMemo(() => {
-    return allPlayers
-      .filter(p => p.active !== false)
+    const fixturePlayerIds = new Set<string>();
+    h2hMatchFixtures.forEach(f => {
+      if (f.homeId !== 'BYE') fixturePlayerIds.add(f.homeId);
+      if (f.awayId !== 'BYE') fixturePlayerIds.add(f.awayId);
+    });
+
+    const sourcePlayers = fixturePlayerIds.size > 0
+      ? allPlayers.filter(p => fixturePlayerIds.has(p.id))
+      : allPlayers.filter(p => p.active !== false);
+
+    return sourcePlayers
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, [allPlayers]);
+  }, [allPlayers, h2hMatchFixtures]);
+
+  const h2hOpponentPlayers = useMemo(() => {
+    if (!h2hPlayers.p1) return h2hSelectablePlayers;
+
+    const opponentIds = new Set<string>();
+    h2hMatchFixtures.forEach(f => {
+      if (f.homeId === h2hPlayers.p1 && f.awayId !== 'BYE') opponentIds.add(f.awayId);
+      if (f.awayId === h2hPlayers.p1 && f.homeId !== 'BYE') opponentIds.add(f.homeId);
+    });
+
+    return h2hSelectablePlayers.filter(p => opponentIds.has(p.id));
+  }, [h2hMatchFixtures, h2hPlayers.p1, h2hSelectablePlayers]);
 
 
 
@@ -3377,7 +3398,7 @@ function LeagueApp() {
                     <div className="flex items-center gap-4">
                       <select
                         value={h2hPlayers.p1}
-                        onChange={(e) => setH2hPlayers({ ...h2hPlayers, p1: e.target.value })}
+                        onChange={(e) => setH2hPlayers({ p1: e.target.value, p2: '' })}
                         className="flex-1 bg-pl-ink border border-white/10 rounded px-4 py-3 text-sm focus:border-pl-cyan outline-none transition-colors"
                       >
                         <option value="">Player 1</option>
@@ -3394,7 +3415,7 @@ function LeagueApp() {
                         className="flex-1 bg-pl-ink border border-white/10 rounded px-4 py-3 text-sm focus:border-pl-cyan outline-none transition-colors"
                       >
                         <option value="">Player 2</option>
-                        {h2hSelectablePlayers.map(p => (
+                        {h2hOpponentPlayers.map(p => (
                           <option key={p.id} value={p.id}>
                             {formatWcDisplayName(p.name, p.wcTeam)}
                           </option>
@@ -3431,6 +3452,11 @@ function LeagueApp() {
               {h2hData && (
                 <div className="space-y-4">
                   <h3 className="font-condensed font-bold text-xs uppercase tracking-widest text-white/40">Match History</h3>
+                  {h2hData.matches.length === 0 && (
+                    <div className="text-center text-white/20 font-condensed uppercase tracking-widest text-sm py-8 glass rounded-xl">
+                      No generated fixture found for these two players
+                    </div>
+                  )}
                   <div className="grid gap-3">
                     {h2hData.matches.map(f => {
                       const isP1Home = h2hData.p1Ids.has(f.homeId);
