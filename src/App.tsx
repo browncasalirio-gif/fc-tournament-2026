@@ -3558,15 +3558,25 @@ function LeagueApp() {
                               </button>
                             </div>
                           ) : isAdmin ? (
-                            <button
-                              onClick={() => {
-                                setH2hEditingFixture(f.id);
-                                setH2hScores({ home: f.homeScore ?? 0, away: f.awayScore ?? 0 });
-                              }}
-                              className="text-[10px] font-condensed text-pl-cyan/50 uppercase tracking-widest hover:text-pl-cyan transition-colors text-center"
-                            >
-                              {f.status === 'played' ? 'Edit Score' : 'Enter Score'}
-                            </button>
+                            <div className="flex items-center justify-center gap-4">
+                              <button
+                                onClick={() => {
+                                  setH2hEditingFixture(f.id);
+                                  setH2hScores({ home: f.homeScore ?? 0, away: f.awayScore ?? 0 });
+                                }}
+                                className="text-[10px] font-condensed text-pl-cyan/60 uppercase tracking-widest hover:text-pl-cyan transition-colors text-center"
+                              >
+                                {f.status === 'played' ? 'Edit Score' : 'Enter Score'}
+                              </button>
+                              {f.status === 'played' && (
+                                <button
+                                  onClick={() => clearFixtureScore(f.id)}
+                                  className="text-[10px] font-condensed text-red-400/70 uppercase tracking-widest hover:text-red-400 transition-colors text-center"
+                                >
+                                  Clear Score
+                                </button>
+                              )}
+                            </div>
                           ) : null}
                         </div>
                       );
