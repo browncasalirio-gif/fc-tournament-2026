@@ -1727,11 +1727,19 @@ function LeagueApp() {
 
   const addPlayer = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!user) return;
+    if (!user || !isAdmin) {
+      showToast("Admin login required to add players", "error");
+      return;
+    }
     const formData = new FormData(e.currentTarget);
-    const name = formData.get('name') as string;
-    const club = formData.get('club') as string;
-    const bio = formData.get('bio') as string;
+    const name = String(formData.get('name') || '').trim();
+    const club = String(formData.get('club') || '').trim() || 'Unassigned';
+    const bio = String(formData.get('bio') || '').trim();
+
+    if (!name) {
+      showToast("Enter a player name", "error");
+      return;
+    }
 
     try {
       await addDoc(collection(db, 'players'), {
@@ -3679,10 +3687,20 @@ function LeagueApp() {
                                   return (
                                     <div className="grid grid-cols-3 items-center px-4 py-3 hover:bg-white/5 transition-colors">
                                       <div className="font-bold text-sm text-pl-cyan">{playerName}</div>
-                                      <div className="flex items-center justify-center gap-3">
-                                        <span className={`font-display text-xl ${resColor}`}>{homeLeg.homeScore}</span>
-                                        <span className="text-white/20 text-[8px] font-condensed uppercase">vs</span>
-                                        <span className="font-display text-xl text-white/50">{homeLeg.awayScore}</span>
+                                      <div className="flex flex-col items-center gap-1">
+                                        <div className="flex items-center justify-center gap-3">
+                                          <span className={`font-display text-xl ${resColor}`}>{homeLeg.homeScore}</span>
+                                          <span className="text-white/20 text-[8px] font-condensed uppercase">vs</span>
+                                          <span className="font-display text-xl text-white/50">{homeLeg.awayScore}</span>
+                                        </div>
+                                        {isAdmin && (
+                                          <button
+                                            onClick={() => clearFixtureScore(homeLeg.id)}
+                                            className="text-[9px] font-condensed text-red-400/70 uppercase tracking-widest hover:text-red-400 transition-colors"
+                                          >
+                                            Clear Score
+                                          </button>
+                                        )}
                                       </div>
                                       <div className="text-right font-bold text-sm text-white/60">{group.oppName}</div>
                                     </div>
@@ -3697,10 +3715,20 @@ function LeagueApp() {
                                   return (
                                     <div className="grid grid-cols-3 items-center px-4 py-3 hover:bg-white/5 transition-colors">
                                       <div className="font-bold text-sm text-white/60">{group.oppName}</div>
-                                      <div className="flex items-center justify-center gap-3">
-                                        <span className="font-display text-xl text-white/50">{awayLeg.homeScore}</span>
-                                        <span className="text-white/20 text-[8px] font-condensed uppercase">vs</span>
-                                        <span className={`font-display text-xl ${resColor}`}>{awayLeg.awayScore}</span>
+                                      <div className="flex flex-col items-center gap-1">
+                                        <div className="flex items-center justify-center gap-3">
+                                          <span className="font-display text-xl text-white/50">{awayLeg.homeScore}</span>
+                                          <span className="text-white/20 text-[8px] font-condensed uppercase">vs</span>
+                                          <span className={`font-display text-xl ${resColor}`}>{awayLeg.awayScore}</span>
+                                        </div>
+                                        {isAdmin && (
+                                          <button
+                                            onClick={() => clearFixtureScore(awayLeg.id)}
+                                            className="text-[9px] font-condensed text-red-400/70 uppercase tracking-widest hover:text-red-400 transition-colors"
+                                          >
+                                            Clear Score
+                                          </button>
+                                        )}
                                       </div>
                                       <div className="text-right font-bold text-sm text-pl-cyan">{playerName}</div>
                                     </div>
