@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback, Component, ErrorInfo, ReactNode } from 'react';
 // Version: 1.0.1 - Guest Sync Fix
 import { GoogleGenAI } from "@google/genai";
-import { 
-  Trophy, 
-  Calendar, 
-  Users, 
-  MessageSquare, 
-  ShieldCheck, 
-  Plus, 
-  Trash2, 
+import {
+  Trophy,
+  Calendar,
+  Users,
+  MessageSquare,
+  ShieldCheck,
+  Plus,
+  Trash2,
   Edit3,
   ChevronLeft,
   ChevronRight,
@@ -26,32 +26,32 @@ import {
   EyeOff
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { 
-  auth, 
-  db, 
-  loginWithGoogle, 
+import {
+  auth,
+  db,
+  loginWithGoogle,
   loginWithEmail,
   registerWithEmail,
   loginAnonymously,
   updateAuthProfile,
-  logout, 
+  logout,
   resetPassword,
-  handleFirestoreError, 
-  OperationType 
+  handleFirestoreError,
+  OperationType
 } from './firebase';
-import { 
-  onAuthStateChanged, 
-  User 
+import {
+  onAuthStateChanged,
+  User
 } from 'firebase/auth';
-import { 
-  collection, 
-  query, 
-  where, 
-  onSnapshot, 
-  addDoc, 
-  updateDoc, 
-  deleteDoc, 
-  doc, 
+import {
+  collection,
+  query,
+  where,
+  onSnapshot,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  doc,
   serverTimestamp,
   setDoc,
   getDoc,
@@ -190,7 +190,7 @@ class ErrorBoundary extends React.Component<any, any> {
             <p className="text-white/60 font-condensed mb-6 uppercase tracking-widest text-xs">
               {this.state.error?.message || "An unexpected error occurred"}
             </p>
-            <button 
+            <button
               onClick={() => window.location.reload()}
               className="bg-pl-cyan text-pl-ink px-6 py-2 rounded-full font-condensed font-bold uppercase tracking-widest hover:scale-105 transition-transform"
             >
@@ -322,6 +322,10 @@ function LeagueApp() {
     return allFixtures.filter(f => f.competition === 'playoff' && f.seasonId === currentSeasonId);
   }, [allFixtures, currentSeasonId]);
 
+  const wcFixtures = useMemo(() => {
+    return allFixtures.filter(f => f.competition === 'wc' && f.seasonId === currentSeasonId);
+  }, [allFixtures, currentSeasonId]);
+
   const getWcFixtureDisplayName = useCallback((playerId: string, fallbackName: string) => {
     const player = allPlayers.find(p => p.id === playerId);
     return player ? formatWcDisplayName(player.name, player.wcTeam) : fallbackName;
@@ -329,12 +333,12 @@ function LeagueApp() {
 
   const wcTableData = useMemo(() => {
     const groups: Record<string, TableRow[]> = { 'A': [], 'B': [], 'C': [], 'D': [] };
-    
+
     // Initialize stats for each group
     ['A', 'B', 'C', 'D'].forEach(g => {
       const groupPlayers = allPlayers.filter(p => p.wcGroup === g);
       const stats: Record<string, TableRow> = {};
-      
+
       groupPlayers.forEach(p => {
         stats[p.id] = {
           id: p.id,
@@ -453,7 +457,7 @@ function LeagueApp() {
       (pIds.has(f.homeId) || pIds.has(f.awayId)) &&
       f.seasonId === currentSeasonId &&
       f.status === 'played' &&
-      f.competition === 'league'
+      (f.competition === 'league' || f.competition === 'wc')
     );
     // Sort most recent first (highest matchday first)
     const sorted = [...matches].sort((a, b) => b.matchday - a.matchday);
@@ -484,12 +488,12 @@ function LeagueApp() {
         // Save user profile
         const userRef = doc(db, 'users', currentUser.uid);
         const userSnap = await getDoc(userRef);
-        
+
         let role = 'user';
         if (userSnap.exists()) {
           role = userSnap.data().role || 'user';
         }
-        
+
         // Check admin emails from Firestore + hardcoded fallback
         const userEmail = currentUser.email?.toLowerCase().trim();
         console.log("Auth State Changed: User Email =", userEmail);
@@ -515,7 +519,7 @@ function LeagueApp() {
             console.log("Admin access granted (fallback) for:", userEmail);
           }
         }
-        
+
         const finalIsAdmin = role === 'admin' || isHardcodedAdmin;
         setIsAdmin(finalIsAdmin);
         setSelectedUserUid(currentUser.uid);
@@ -643,7 +647,7 @@ function LeagueApp() {
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError('');
-    
+
     if (pin === '2580') {
       try {
         await loginAnonymously();
@@ -736,7 +740,7 @@ function LeagueApp() {
       if (teamIds.length % 2 !== 0) {
         teamIds.push('BYE'); // Add dummy player for odd number of teams
       }
-      
+
       const n = teamIds.length;
       const roundsPerHalf = n - 1;
       const matchesPerRound = n / 2;
@@ -933,10 +937,10 @@ function LeagueApp() {
     if (!isAdmin) return;
     const player = allPlayers.find(p => p.id === playerId);
     if (!player || !player.wcTeam) return;
-    
+
     // Strip the initials (XXX) from the name
     const baseName = player.name.split(' (')[0];
-    
+
     try {
       setLoading(true);
       const playerRef = doc(db, 'players', player.id);
@@ -961,7 +965,7 @@ function LeagueApp() {
     try {
       setLoading(true);
       const batch = writeBatch(db);
-      
+
       // 1. Delete all WC fixtures for this season
       const wcFixturesToDelete = allFixtures.filter(f => f.competition === 'wc' && f.seasonId === currentSeasonId);
       wcFixturesToDelete.forEach(f => {
@@ -1072,7 +1076,7 @@ function LeagueApp() {
       const shuffledPot4 = shuffle(pot4);
 
       const groups = ['A', 'B', 'C', 'D'] as const;
-      
+
       const batch = writeBatch(db);
 
       // Assign groups and prepare fixture groupings
@@ -1097,7 +1101,7 @@ function LeagueApp() {
       const today = new Date();
       groups.forEach(groupLetter => {
         const groupMembers = groupedPlayers[groupLetter];
-        
+
         // 4 players in a group -> 6 rounds for double round robin
         // R1: 1v2, 3v4
         // R2: 1v3, 2v4
@@ -1110,7 +1114,7 @@ function LeagueApp() {
         ];
 
         let matchdayOffset = 1;
-        
+
         // Home
         matchups.forEach((roundMatchups, index) => {
           const deadlineStr = new Date(today.getTime() + (index + 1) * 7 * 86400000).toISOString().split('T')[0];
@@ -1750,9 +1754,9 @@ function LeagueApp() {
     if (!user) return;
     const isOwner = players.some(p => p.id === id);
     if (!isOwner && !isAdmin) return;
-    
+
     if (isAdmin && !window.confirm("Are you sure you want to delete this player? This will also affect their fixtures.")) return;
-    
+
     try {
       await deleteDoc(doc(db, 'players', id));
       showToast("Player removed");
@@ -1830,7 +1834,7 @@ function LeagueApp() {
 
     try {
       const batch = writeBatch(db);
-      
+
       if (auction.highestBidderUid) {
         // Transfer player
         batch.update(doc(db, 'players', auction.playerId), {
@@ -2070,8 +2074,8 @@ function LeagueApp() {
         const match = line.match(/^(.+?)\s+(\d+)\s*-\s*(\d+)\s+(.+)$/i);
         if (match) {
           const [, homeName, homeScore, awayScore, awayName] = match;
-          const fixture = fixtures.find(f => 
-            f.homeName.toLowerCase() === homeName.toLowerCase() && 
+          const fixture = fixtures.find(f =>
+            f.homeName.toLowerCase() === homeName.toLowerCase() &&
             f.awayName.toLowerCase() === awayName.toLowerCase() &&
             f.status !== 'played'
           );
@@ -2110,7 +2114,7 @@ function LeagueApp() {
         contents: `Generate a funny, roast-style match report for a FIFA league.
         Match: ${fixture.homeName} vs ${fixture.awayName}
         Score: ${homeScore} - ${awayScore}
-        
+
         The report should have a catchy title and a short, hilarious summary that roasts the loser and praises the winner (or roasts both if it's a boring draw). Use slang and banter common in football communities. Keep it under 150 words.
         Return the result as a JSON object with "title" and "content" fields.`,
         config: {
@@ -2336,10 +2340,10 @@ function LeagueApp() {
         awayScore: scores.away,
         status: 'played'
       });
-      
+
       // Auto-generate match report
       generateMatchReport(selectedFixture, scores.home, scores.away);
-      
+
       setShowModal(false);
       showToast("Score updated!");
     } catch (err) {
@@ -2385,7 +2389,7 @@ function LeagueApp() {
   };
 
   const shareTable = () => {
-    const text = `🏆 SHATTA MOVEMENT LEAGUE Standings\n\n` + 
+    const text = `🏆 SHATTA MOVEMENT LEAGUE Standings\n\n` +
       tableData.map((p, i) => `${i+1}. ${p.name} - ${p.pts}pts (${p.w}W ${p.d}D ${p.l}L)`).join('\n');
     navigator.clipboard.writeText(text);
     showToast("Table copied to clipboard!");
@@ -2461,13 +2465,13 @@ function LeagueApp() {
   if (!user && !isGuest) {
     return (
       <div className="min-h-screen bg-pl-ink text-white flex items-center justify-center p-6 font-sans">
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           className="glass p-10 rounded-3xl w-full max-w-md border border-white/5 shadow-2xl relative overflow-hidden"
         >
           <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-pl-cyan via-pl-pink to-pl-purple" />
-          
+
           <div className="text-center mb-10">
             <div className="inline-flex items-center justify-center w-20 h-20 bg-white/5 rounded-2xl mb-6 border border-white/10">
               <Trophy className="text-pl-cyan" size={40} />
@@ -2493,7 +2497,7 @@ function LeagueApp() {
             </div>
           ) : (
             <div className="space-y-6">
-              <button 
+              <button
                 onClick={() => loginWithGoogle().catch(err => {
                   console.error("Google Login Error:", err);
                   setAuthError(err.message);
@@ -2510,7 +2514,7 @@ function LeagueApp() {
           )}
 
           <div className="mt-8 pt-8 border-t border-white/5 flex flex-col gap-4 text-center">
-            <button 
+            <button
               onClick={() => setIsAdminLoginMode(!isAdminLoginMode)}
               className="text-[10px] font-condensed text-pl-cyan/60 uppercase tracking-widest hover:text-pl-cyan transition-colors flex items-center justify-center gap-2"
             >
@@ -2536,9 +2540,9 @@ function LeagueApp() {
     <div className="min-h-screen flex flex-col">
       {/* Hero Section */}
       <header className="pl-gradient border-b-4 border-pl-pink relative overflow-hidden">
-        <div className="absolute inset-0 opacity-10 pointer-events-none" 
+        <div className="absolute inset-0 opacity-10 pointer-events-none"
              style={{ backgroundImage: 'repeating-linear-gradient(-45deg, transparent, transparent 20px, white 20px, white 21px)' }} />
-        
+
         <div className="max-w-5xl mx-auto px-6 py-12 text-center relative z-10">
           <div className="flex justify-center items-center gap-4 mb-8">
             <div className="flex items-center gap-3 glass px-4 py-2 rounded-full">
@@ -2592,7 +2596,7 @@ function LeagueApp() {
               </div>
             </div>
           )}
-          
+
           <div className="flex justify-center max-w-md mx-auto glass rounded-lg divide-x divide-white/10 mt-8">
             <div className="flex-1 py-4">
               <div className="font-display text-2xl text-pl-cyan leading-none">{uniquePlayers.filter(p => p.active !== false).length}</div>
@@ -2665,7 +2669,7 @@ function LeagueApp() {
       {isAdmin && selectedUserUid !== user?.uid && (
         <div className="bg-pl-pink text-white py-2 px-4 text-center text-[10px] font-bold uppercase tracking-widest sticky top-[53px] z-40">
           Viewing data for: {allUsers.find(u => u.uid === selectedUserUid)?.displayName || allUsers.find(u => u.uid === selectedUserUid)?.email}
-          <button 
+          <button
             onClick={() => setSelectedUserUid(user?.uid || null)}
             className="ml-4 underline hover:no-underline"
           >
@@ -2689,7 +2693,7 @@ function LeagueApp() {
                   League <span className="text-pl-pink">Table</span>
                 </h2>
                 <div className="flex items-center gap-4">
-                  <button 
+                  <button
                     onClick={shareTable}
                     className="flex items-center gap-2 text-[10px] font-condensed font-bold text-pl-cyan uppercase tracking-widest hover:text-white transition-colors"
                   >
@@ -2794,19 +2798,19 @@ function LeagueApp() {
                 <div className="flex gap-2">
                   {isAdmin && (
                     <>
-                      <button 
+                      <button
                         onClick={generatePlayoffs}
                         className="bg-pl-purple text-white px-4 py-2 rounded font-condensed font-bold text-xs uppercase tracking-widest hover:scale-105 transition-transform flex items-center gap-2"
                       >
                         <Swords size={14} /> Generate QF
                       </button>
-                      <button 
+                      <button
                         onClick={() => generateUefaDraw(true)}
                         className="bg-white/5 text-white/40 px-4 py-2 rounded font-condensed font-bold text-xs uppercase tracking-widest hover:bg-white/10 transition-all"
                       >
                         Reset Tournament
                       </button>
-                      <button 
+                      <button
                         onClick={() => generateUefaDraw(false)}
                         className="bg-pl-cyan text-pl-ink px-4 py-2 rounded font-condensed font-bold text-xs uppercase tracking-widest hover:scale-105 transition-transform flex items-center gap-2"
                       >
@@ -3001,7 +3005,7 @@ function LeagueApp() {
                 </div>
               </div>
 
-              {fixtures.length === 0 ? (
+              {fixtures.length === 0 && wcFixtures.length === 0 ? (
                 <div className="text-center py-20 glass rounded-xl">
                   <Calendar className="mx-auto text-white/10 mb-4" size={48} />
                   <p className="text-white/40 font-condensed tracking-widest uppercase">No fixtures in this season</p>
@@ -3009,78 +3013,171 @@ function LeagueApp() {
               ) : (
                 <div className="space-y-12">
                   {/* League Section */}
-                  {Array.from(new Set(fixtures.map(f => f.matchday))).sort((a, b) => (a as number) - (b as number)).map(md => (
-                    <div key={md} className="space-y-4">
+                  {fixtures.length > 0 && (
+                    <div className="space-y-8">
                       <div className="flex items-center gap-4">
-                        <div className="h-px flex-grow bg-white/10"></div>
-                        <h3 className="font-condensed font-bold text-xs uppercase tracking-[0.3em] text-pl-pink">Matchday {md}</h3>
-                        <div className="h-px flex-grow bg-white/10"></div>
+                        <div className="h-px flex-grow bg-pl-pink/30"></div>
+                        <h3 className="font-display text-xl uppercase tracking-wider text-pl-pink">League</h3>
+                        <div className="h-px flex-grow bg-pl-pink/30"></div>
                       </div>
-                      
-                      <div className="grid gap-3">
-                        {fixtures.filter(f => f.matchday === md).map(f => {
-                          const isMyMatch = players.some(p => p.id === f.homeId || p.id === f.awayId);
-                          return (
-                            <div 
-                              key={f.id}
-                              onClick={() => {
-                                setSelectedFixture(f);
-                                setScores({ home: f.homeScore || 0, away: f.awayScore || 0 });
-                                setShowModal(true);
-                              }}
-                              className={`glass transition-all rounded-lg p-4 flex items-center justify-between group border-l-4 cursor-pointer hover:bg-white/10 ${
-                                isMyMatch ? 'border-pl-cyan bg-pl-cyan/5' : 'border-transparent'
-                              }`}
-                            >
-                              <div className="flex-1 text-right font-bold pr-6 group-hover:text-pl-cyan transition-colors">{f.homeName}</div>
-                              
-                              <div className="flex items-center gap-4 bg-pl-ink/50 px-6 py-2 rounded-full border border-white/5">
-                                <div className="font-display text-2xl w-8 text-center">
-                                  {f.status === 'played' ? f.homeScore : '-'}
-                                </div>
-                                <div className="text-white/20 font-condensed text-[10px] uppercase tracking-widest">VS</div>
-                                <div className="font-display text-2xl w-8 text-center">
-                                  {f.status === 'played' ? f.awayScore : '-'}
-                                </div>
-                              </div>
-                              
-                              <div className="flex-1 text-left font-bold pl-6 group-hover:text-pl-cyan transition-colors">{f.awayName}</div>
-                              
-                              <div className="hidden md:flex flex-col items-end min-w-[100px] ml-4">
-                                <div className="flex items-center gap-2 mb-1">
-                                  {comments.filter(c => c.fixtureId === f.id).length > 0 && (
-                                    <div className="flex items-center gap-1 text-[8px] text-pl-pink font-bold mr-2">
-                                      <MessageSquare size={10} />
-                                      {comments.filter(c => c.fixtureId === f.id).length}
+                      {Array.from(new Set(fixtures.map(f => f.matchday))).sort((a, b) => (a as number) - (b as number)).map(md => (
+                        <div key={`league-${md}`} className="space-y-4">
+                          <div className="flex items-center gap-4">
+                            <div className="h-px flex-grow bg-white/10"></div>
+                            <h3 className="font-condensed font-bold text-xs uppercase tracking-[0.3em] text-pl-pink">Matchday {md}</h3>
+                            <div className="h-px flex-grow bg-white/10"></div>
+                          </div>
+
+                          <div className="grid gap-3">
+                            {fixtures.filter(f => f.matchday === md).map(f => {
+                              const isMyMatch = players.some(p => p.id === f.homeId || p.id === f.awayId);
+                              return (
+                                <div
+                                  key={f.id}
+                                  onClick={() => {
+                                    setSelectedFixture(f);
+                                    setScores({ home: f.homeScore || 0, away: f.awayScore || 0 });
+                                    setShowModal(true);
+                                  }}
+                                  className={`glass transition-all rounded-lg p-4 flex items-center justify-between group border-l-4 cursor-pointer hover:bg-white/10 ${
+                                    isMyMatch ? 'border-pl-cyan bg-pl-cyan/5' : 'border-transparent'
+                                  }`}
+                                >
+                                  <div className="flex-1 text-right font-bold pr-6 group-hover:text-pl-cyan transition-colors">{f.homeName}</div>
+
+                                  <div className="flex items-center gap-4 bg-pl-ink/50 px-6 py-2 rounded-full border border-white/5">
+                                    <div className="font-display text-2xl w-8 text-center">
+                                      {f.status === 'played' ? f.homeScore : '-'}
                                     </div>
-                                  )}
-                                  {f.status === 'played' && (
-                                    <button 
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        shareToWhatsApp(f);
-                                      }}
-                                      className="p-1 text-emerald-500 hover:scale-110 transition-transform"
-                                      title="Share to WhatsApp"
-                                    >
-                                      <MessageCircle size={14} />
-                                    </button>
-                                  )}
+                                    <div className="text-white/20 font-condensed text-[10px] uppercase tracking-widest">VS</div>
+                                    <div className="font-display text-2xl w-8 text-center">
+                                      {f.status === 'played' ? f.awayScore : '-'}
+                                    </div>
+                                  </div>
+
+                                  <div className="flex-1 text-left font-bold pl-6 group-hover:text-pl-cyan transition-colors">{f.awayName}</div>
+
+                                  <div className="hidden md:flex flex-col items-end min-w-[100px] ml-4">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      {comments.filter(c => c.fixtureId === f.id).length > 0 && (
+                                        <div className="flex items-center gap-1 text-[8px] text-pl-pink font-bold mr-2">
+                                          <MessageSquare size={10} />
+                                          {comments.filter(c => c.fixtureId === f.id).length}
+                                        </div>
+                                      )}
+                                      {f.status === 'played' && (
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            shareToWhatsApp(f);
+                                          }}
+                                          className="p-1 text-emerald-500 hover:scale-110 transition-transform"
+                                          title="Share to WhatsApp"
+                                        >
+                                          <MessageCircle size={14} />
+                                        </button>
+                                      )}
+                                    </div>
+                                    <span className={`text-[8px] font-condensed font-bold uppercase tracking-widest px-2 py-1 rounded ${
+                                      f.status === 'played' ? 'bg-green-500/10 text-green-400' :
+                                      f.status === 'overdue' ? 'bg-yellow-500/10 text-yellow-400' :
+                                      'bg-white/5 text-white/30'
+                                    }`}>
+                                      {f.status === 'played' ? 'Full Time' : f.status === 'overdue' ? 'Overdue' : 'Pending'}
+                                    </span>
+                                  </div>
                                 </div>
-                                <span className={`text-[8px] font-condensed font-bold uppercase tracking-widest px-2 py-1 rounded ${
-                                  f.status === 'played' ? 'bg-green-500/10 text-green-400' : 
-                                  f.status === 'overdue' ? 'bg-yellow-500/10 text-yellow-400' : 
-                                  'bg-white/5 text-white/30'
-                                }`}>
-                                  {f.status === 'played' ? 'Full Time' : f.status === 'overdue' ? 'Overdue' : 'Pending'}
-                                </span>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  )}
+
+                  {wcFixtures.length > 0 && (() => {
+                    const roundLabel = (fixture: Fixture) => {
+                      if (fixture.round?.startsWith('group_')) return `Group ${fixture.round.split('_')[1]} - Matchday ${fixture.matchday}`;
+                      if (fixture.round === 'wc_QF') return `World Cup Quarter-Finals - Leg ${fixture.matchday}`;
+                      if (fixture.round === 'wc_SF') return `World Cup Semi-Finals - Leg ${fixture.matchday}`;
+                      if (fixture.round === 'wc_F') return 'World Cup Final';
+                      return `World Cup Matchday ${fixture.matchday}`;
+                    };
+                    const grouped = new Map<string, Fixture[]>();
+                    wcFixtures
+                      .slice()
+                      .sort((a, b) => {
+                        const roundOrder = (round?: string) => round?.startsWith('group_') ? 0 : round === 'wc_QF' ? 1 : round === 'wc_SF' ? 2 : round === 'wc_F' ? 3 : 4;
+                        const orderDiff = roundOrder(a.round) - roundOrder(b.round);
+                        if (orderDiff !== 0) return orderDiff;
+                        if ((a.round || '') !== (b.round || '')) return (a.round || '').localeCompare(b.round || '');
+                        return a.matchday - b.matchday;
+                      })
+                      .forEach(f => {
+                        const label = roundLabel(f);
+                        if (!grouped.has(label)) grouped.set(label, []);
+                        grouped.get(label)!.push(f);
+                      });
+
+                    return (
+                      <div className="space-y-8">
+                        <div className="flex items-center gap-4">
+                          <div className="h-px flex-grow bg-pl-cyan/30"></div>
+                          <h3 className="font-display text-xl uppercase tracking-wider text-pl-cyan">World Cup</h3>
+                          <div className="h-px flex-grow bg-pl-cyan/30"></div>
+                        </div>
+                        {Array.from(grouped.entries()).map(([label, groupFixtures]) => (
+                          <div key={label} className="space-y-4">
+                            <div className="flex items-center gap-4">
+                              <div className="h-px flex-grow bg-white/10"></div>
+                              <h3 className="font-condensed font-bold text-xs uppercase tracking-[0.3em] text-pl-cyan">{label}</h3>
+                              <div className="h-px flex-grow bg-white/10"></div>
+                            </div>
+                            <div className="grid gap-3">
+                              {groupFixtures.map(f => {
+                                const homeName = getWcFixtureDisplayName(f.homeId, f.homeName);
+                                const awayName = getWcFixtureDisplayName(f.awayId, f.awayName);
+                                const isMyMatch = players.some(p => p.id === f.homeId || p.id === f.awayId);
+                                return (
+                                  <div
+                                    key={f.id}
+                                    onClick={() => {
+                                      setSelectedFixture(f);
+                                      setScores({ home: f.homeScore || 0, away: f.awayScore || 0 });
+                                      setShowModal(true);
+                                    }}
+                                    className={`glass transition-all rounded-lg p-4 flex items-center justify-between group border-l-4 cursor-pointer hover:bg-white/10 ${
+                                      isMyMatch ? 'border-pl-cyan bg-pl-cyan/5' : 'border-transparent'
+                                    }`}
+                                  >
+                                    <div className="flex-1 text-right font-bold pr-6 group-hover:text-pl-cyan transition-colors">{homeName}</div>
+                                    <div className="flex items-center gap-4 bg-pl-ink/50 px-6 py-2 rounded-full border border-white/5">
+                                      <div className="font-display text-2xl w-8 text-center">{f.status === 'played' ? f.homeScore : '-'}</div>
+                                      <div className="text-white/20 font-condensed text-[10px] uppercase tracking-widest">VS</div>
+                                      <div className="font-display text-2xl w-8 text-center">{f.status === 'played' ? f.awayScore : '-'}</div>
+                                    </div>
+                                    <div className="flex-1 text-left font-bold pl-6 group-hover:text-pl-cyan transition-colors">{awayName}</div>
+                                    <div className="hidden md:flex flex-col items-end min-w-[100px] ml-4">
+                                      <span className="text-[8px] font-condensed font-bold uppercase tracking-widest px-2 py-1 rounded bg-pl-cyan/10 text-pl-cyan mb-1">
+                                        {f.round?.startsWith('group_') ? `Group ${f.round.split('_')[1]}` : f.round?.replace('wc_', '') || 'WC'}
+                                      </span>
+                                      <span className={`text-[8px] font-condensed font-bold uppercase tracking-widest px-2 py-1 rounded ${
+                                        f.status === 'played' ? 'bg-green-500/10 text-green-400' :
+                                        f.status === 'overdue' ? 'bg-yellow-500/10 text-yellow-400' :
+                                        'bg-white/5 text-white/30'
+                                      }`}>
+                                        {f.status === 'played' ? 'Full Time' : f.status === 'overdue' ? 'Overdue' : 'Pending'}
+                                      </span>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
           </motion.div>
@@ -3125,13 +3222,13 @@ function LeagueApp() {
 
                       <h3 className="font-condensed font-bold text-xs uppercase tracking-widest text-pl-cyan mb-4">Bulk Import</h3>
                       <div className="space-y-4">
-                        <textarea 
+                        <textarea
                           value={bulkText}
                           onChange={(e) => setBulkText(e.target.value)}
                           placeholder="Paste names here (one per line)..."
                           className="w-full h-32 bg-pl-ink border border-white/10 rounded px-4 py-3 text-sm focus:border-pl-cyan outline-none transition-colors resize-none"
                         />
-                        <button 
+                        <button
                           onClick={addBulkPlayers}
                           className="w-full border border-pl-cyan text-pl-cyan py-3 rounded font-condensed font-bold text-xs uppercase tracking-widest hover:bg-pl-cyan hover:text-pl-ink transition-all flex items-center justify-center gap-2"
                         >
@@ -3146,7 +3243,7 @@ function LeagueApp() {
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="font-condensed font-bold text-xs uppercase tracking-widest text-white/40">Current Squad ({uniquePlayers.filter(p => p.active !== false).length} active / {uniquePlayers.length} total)</h3>
                     {isAdmin && players.length > 0 && (
-                      <button 
+                      <button
                         onClick={clearAllPlayers}
                         className="text-[10px] font-condensed font-bold uppercase tracking-widest text-red-400 hover:text-red-300 transition-colors flex items-center gap-1"
                       >
@@ -3156,8 +3253,8 @@ function LeagueApp() {
                   </div>
                   <div className="grid sm:grid-cols-2 gap-4">
                     {uniquePlayers.sort((a, b) => a.name.localeCompare(b.name)).map((p, i) => (
-                      <div 
-                        key={p.id} 
+                      <div
+                        key={p.id}
                         onClick={() => {
                           setSelectedPlayer(p);
                           setPlayerBio(p.bio || '');
@@ -3329,10 +3426,10 @@ function LeagueApp() {
                       const isP1Home = h2hData.p1Ids.has(f.homeId);
                       const p1Goals = isP1Home ? f.homeScore : f.awayScore;
                       const p2Goals = isP1Home ? f.awayScore : f.homeScore;
-                      
+
                       let result = '';
                       let resultColor = 'bg-white/5 text-white/20';
-                      
+
                       if (f.status === 'played') {
                         if (p1Goals! > p2Goals!) {
                           result = 'W';
@@ -3581,7 +3678,7 @@ function LeagueApp() {
                         <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
                           <Swords size={64} />
                         </div>
-                        
+
                         <div className="relative z-10">
                           <div className="flex justify-between items-start mb-4">
                             <div>
@@ -3606,20 +3703,20 @@ function LeagueApp() {
                           {isAdmin && (
                             <div className="space-y-3">
                               <div className="flex gap-2">
-                                <input 
-                                  type="number" 
+                                <input
+                                  type="number"
                                   placeholder="Bid amount..."
                                   className="flex-1 bg-pl-ink border border-white/10 rounded px-3 py-2 text-xs focus:border-pl-cyan outline-none transition-colors"
                                   onChange={(e) => setBidAmount(parseInt(e.target.value) || 0)}
                                 />
-                                <button 
+                                <button
                                   onClick={() => placeBid(auction, bidAmount)}
                                   className="bg-pl-cyan text-pl-ink px-4 py-2 rounded font-condensed font-bold text-[10px] uppercase tracking-widest hover:brightness-110 transition-all"
                                 >
                                   Bid
                                 </button>
                               </div>
-                              <button 
+                              <button
                                 onClick={() => completeAuction(auction)}
                                 className="w-full border border-white/10 text-white/40 py-2 rounded font-condensed font-bold text-[10px] uppercase tracking-widest hover:bg-white/5 transition-all"
                               >
@@ -3693,7 +3790,7 @@ function LeagueApp() {
                   <p className="text-white/40 font-condensed uppercase tracking-widest text-xs">Latest updates from SHATTA MOVEMENT LEAGUE</p>
                 </div>
                 {isAdmin && (
-                  <button 
+                  <button
                     onClick={() => {
                       setEditingNews(null);
                       setNewNews({ title: '', content: '', imageUrl: '' });
@@ -3708,16 +3805,16 @@ function LeagueApp() {
 
               <div className="grid md:grid-cols-2 gap-8">
                 {news.map((article) => (
-                  <motion.article 
+                  <motion.article
                     key={article.id}
                     layout
                     className="glass rounded-2xl overflow-hidden flex flex-col group"
                   >
                     {article.imageUrl && (
                       <div className="aspect-video relative overflow-hidden">
-                        <img 
-                          src={article.imageUrl || undefined} 
-                          alt={article.title} 
+                        <img
+                          src={article.imageUrl || undefined}
+                          alt={article.title}
                           className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                           referrerPolicy="no-referrer"
                         />
@@ -3731,7 +3828,7 @@ function LeagueApp() {
                         </span>
                         {isAdmin && (
                           <div className="flex gap-2">
-                            <button 
+                            <button
                               onClick={() => {
                                 setEditingNews(article);
                                 setNewNews({ title: article.title, content: article.content, imageUrl: article.imageUrl || '' });
@@ -3741,7 +3838,7 @@ function LeagueApp() {
                             >
                               <Edit3 size={14} />
                             </button>
-                            <button 
+                            <button
                               onClick={() => deleteNews(article.id)}
                               className="text-white/20 hover:text-red-500 transition-colors"
                             >
@@ -4151,7 +4248,7 @@ function LeagueApp() {
         </AnimatePresence>
         <AnimatePresence>
           {toast && (
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, y: 50 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 50 }}
@@ -4420,12 +4517,12 @@ function LeagueApp() {
                 })()}
               </div>
             )}
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {['A', 'B', 'C', 'D'].map(groupLetter => {
                 const groupPlayers = allPlayers.filter(p => p.wcGroup === groupLetter);
                 if (groupPlayers.length === 0) return null;
-                
+
                 const groupColors = {
                   'A': { border: 'text-red-400', bg: 'from-red-500/20 to-red-500/5' },
                   'B': { border: 'text-blue-400', bg: 'from-blue-500/20 to-blue-500/5' },
@@ -4482,7 +4579,7 @@ function LeagueApp() {
                 <div className="text-center">
                   <h3 className="font-display text-2xl uppercase tracking-wider">Group Stage <span className="text-pl-cyan">Fixtures</span></h3>
                 </div>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {[1, 2, 3, 4, 5, 6].map(matchday => {
                     const mdFixtures = allFixtures.filter(f => f.competition === 'wc' && f.round.startsWith('group_') && f.matchday === matchday && f.seasonId === currentSeasonId);
@@ -4500,7 +4597,7 @@ function LeagueApp() {
                             </span>
                           )}
                         </div>
-                        
+
                         <div className="space-y-3">
                           {mdFixtures.map(fixture => (
                             <div key={fixture.id} className="bg-black/20 rounded-xl p-3 border border-white/5 hover:bg-white/5 transition-colors relative overflow-hidden group">
@@ -4526,7 +4623,7 @@ function LeagueApp() {
                                   <div className="font-display text-sm">{getWcFixtureDisplayName(fixture.awayId, fixture.awayName)}</div>
                                 </div>
                               </div>
-                              
+
                               {isAdmin && (
                                 <button
                                   onClick={() => {
@@ -4723,16 +4820,16 @@ function LeagueApp() {
                   <p className="text-white/40 font-condensed uppercase tracking-widest text-[10px]">Global league management tools</p>
                 </div>
               </div>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <button 
+                <button
                   onClick={() => setShowSeasonModal(true)}
                   className="flex flex-col items-center justify-center p-6 glass rounded-xl hover:bg-pl-cyan/10 transition-all group border border-white/5"
                 >
                   <Calendar className="text-pl-cyan mb-3 group-hover:scale-110 transition-transform" size={24} />
                   <span className="font-condensed font-bold text-xs uppercase tracking-widest">Manage Seasons</span>
                 </button>
-                <button 
+                <button
                   onClick={generatePlayoffs}
                   className="flex flex-col items-center justify-center p-6 glass rounded-xl hover:bg-pl-purple/10 transition-all group border border-white/5"
                 >
@@ -4754,7 +4851,7 @@ function LeagueApp() {
                   <Trash2 className="text-red-500 mb-3 group-hover:scale-110 transition-transform" size={24} />
                   <span className="font-condensed font-bold text-xs uppercase tracking-widest">Reset All Fixtures</span>
                 </button>
-                <button 
+                <button
                   onClick={() => setActiveTab('news')}
                   className="flex flex-col items-center justify-center p-6 glass rounded-xl hover:bg-pl-purple/10 transition-all group border border-white/5"
                 >
@@ -4972,8 +5069,8 @@ function LeagueApp() {
 
                 <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2 no-scrollbar">
                   {uniquePlayers.sort((a, b) => a.name.localeCompare(b.name)).map((p) => (
-                    <div 
-                      key={p.id} 
+                    <div
+                      key={p.id}
                       onClick={() => {
                         setSelectedPlayer(p);
                         setPlayerBio(p.bio || '');
@@ -4990,7 +5087,7 @@ function LeagueApp() {
                           {/* Club display removed */}
                         </div>
                       </div>
-                      <button 
+                      <button
                         onClick={(e) => {
                           e.stopPropagation();
                           deletePlayer(p.id);
@@ -5070,19 +5167,19 @@ function LeagueApp() {
                     <p className="text-white/40 font-condensed uppercase tracking-widest text-[10px]">Upload match scores in bulk</p>
                   </div>
                 </div>
-                
+
                 <div className="space-y-4">
                   <p className="text-[10px] text-white/40 uppercase tracking-widest leading-relaxed">
                     Format: <span className="text-pl-cyan">Home Team X-Y Away Team</span> (One per line)<br/>
                     Example: <span className="text-white/60 italic">Shatta 2-1 Movement</span>
                   </p>
-                  <textarea 
+                  <textarea
                     value={bulkResultsText}
                     onChange={(e) => setBulkResultsText(e.target.value)}
                     placeholder="Paste results here..."
                     className="w-full bg-pl-ink border border-white/10 rounded-xl p-4 text-xs text-white/80 focus:border-pl-pink outline-none transition-colors h-40 resize-none font-mono"
                   />
-                  <button 
+                  <button
                     onClick={bulkUploadResults}
                     className="w-full bg-pl-pink text-white py-4 rounded-xl font-condensed font-bold text-xs uppercase tracking-widest hover:brightness-110 transition-all"
                   >
@@ -5098,28 +5195,28 @@ function LeagueApp() {
       {/* Auction Modal */}
       {showAuctionModal && auctionPlayer && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             className="absolute inset-0 bg-pl-ink/90 backdrop-blur-sm"
             onClick={() => setShowAuctionModal(false)}
           />
-          <motion.div 
+          <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             className="glass rounded-2xl p-8 w-full max-w-md relative z-10"
           >
             <h3 className="font-display text-xl uppercase tracking-widest text-pl-cyan mb-2">Start Auction</h3>
             <p className="text-[10px] font-condensed text-white/40 uppercase tracking-[0.2em] mb-8">List {auctionPlayer.name} on the Transfer Market</p>
-            
+
             <div className="space-y-6 mb-8">
               <div>
                 <label className="block text-[10px] font-condensed text-white/40 uppercase tracking-widest mb-2">Starting Bid (Millions)</label>
-                <input 
-                  type="number" 
+                <input
+                  type="number"
                   value={bidAmount}
                   onChange={(e) => setBidAmount(parseInt(e.target.value) || 0)}
-                  className="w-full bg-pl-ink border border-white/10 rounded px-4 py-3 text-sm focus:border-pl-cyan outline-none transition-colors" 
+                  className="w-full bg-pl-ink border border-white/10 rounded px-4 py-3 text-sm focus:border-pl-cyan outline-none transition-colors"
                   placeholder="e.g. 10"
                 />
               </div>
@@ -5131,13 +5228,13 @@ function LeagueApp() {
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <button 
+              <button
                 onClick={() => startAuction(auctionPlayer, bidAmount)}
                 className="bg-pl-cyan text-pl-ink py-4 rounded-lg font-condensed font-bold text-xs uppercase tracking-widest hover:brightness-110 transition-all"
               >
                 Start Auction
               </button>
-              <button 
+              <button
                 onClick={() => setShowAuctionModal(false)}
                 className="bg-white/5 text-white/60 py-4 rounded-lg font-condensed font-bold text-xs uppercase tracking-widest hover:bg-white/10 transition-all"
               >
@@ -5151,31 +5248,31 @@ function LeagueApp() {
       {/* Season Management Modal */}
       {showSeasonModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             className="absolute inset-0 bg-pl-ink/90 backdrop-blur-sm"
             onClick={() => setShowSeasonModal(false)}
           />
-          <motion.div 
+          <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             className="glass rounded-2xl p-8 w-full max-w-md relative z-10"
           >
             <h3 className="font-display text-xl uppercase tracking-widest text-pl-cyan mb-6">Manage Seasons</h3>
-            
+
             <div className="space-y-4 mb-8">
               <div>
                 <label className="block text-[10px] font-condensed text-white/40 uppercase tracking-widest mb-2">New Season Name</label>
                 <div className="flex gap-2">
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     value={newSeasonName}
                     onChange={(e) => setNewSeasonName(e.target.value)}
                     placeholder="e.g. Season 2, Winter 2026..."
                     className="flex-1 bg-pl-ink border border-white/10 rounded-xl px-4 py-3 text-xs focus:border-pl-cyan outline-none transition-colors"
                   />
-                  <button 
+                  <button
                     onClick={addSeason}
                     className="bg-pl-cyan text-pl-ink px-4 rounded-xl font-condensed font-bold text-[10px] uppercase tracking-widest hover:brightness-110"
                   >
@@ -5190,7 +5287,7 @@ function LeagueApp() {
                   {seasons.map(s => (
                     <div key={s.id} className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5">
                       <span className="text-xs font-bold">{s.name}</span>
-                      <button 
+                      <button
                         onClick={() => toggleSeasonActive(s.id)}
                         className={`px-3 py-1 rounded-full text-[8px] font-bold uppercase tracking-widest transition-all ${
                           s.active ? 'bg-pl-cyan text-pl-ink' : 'bg-white/10 text-white/40 hover:bg-white/20'
@@ -5204,7 +5301,7 @@ function LeagueApp() {
               </div>
             </div>
 
-            <button 
+            <button
               onClick={() => setShowSeasonModal(false)}
               className="w-full bg-white/5 text-white/60 py-4 rounded-lg font-condensed font-bold text-xs uppercase tracking-widest hover:bg-white/10 transition-all"
             >
@@ -5217,13 +5314,13 @@ function LeagueApp() {
       {/* Score / Fixture Detail Modal */}
       {showModal && selectedFixture && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             className="absolute inset-0 bg-pl-ink/90 backdrop-blur-sm"
             onClick={() => setShowModal(false)}
           />
-          <motion.div 
+          <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             className="glass rounded-2xl p-8 w-full max-w-lg relative z-10 max-h-[90vh] overflow-y-auto no-scrollbar"
@@ -5240,7 +5337,7 @@ function LeagueApp() {
                       <p className="text-[10px] font-condensed text-white/40 uppercase tracking-[0.2em]">Matchday {selectedFixture.matchday} • {selectedFixture.deadline}</p>
                     </div>
                     {selectedFixture.status === 'played' && (
-                      <button 
+                      <button
                         onClick={() => shareToWhatsApp(selectedFixture)}
                         className="bg-emerald-500/10 text-emerald-500 px-3 py-1 rounded-full flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest hover:bg-emerald-500/20 transition-colors"
                       >
@@ -5251,7 +5348,7 @@ function LeagueApp() {
                 );
               })()}
             </div>
-            
+
             {(() => {
               const canEdit = isAdmin;
               return (
@@ -5260,11 +5357,11 @@ function LeagueApp() {
                     <div className="flex-1 text-center space-y-4">
                       <div className="font-bold text-sm truncate">{selectedFixture.homeName}</div>
                       {canEdit ? (
-                        <input 
-                          type="number" 
+                        <input
+                          type="number"
                           value={scores.home}
                           onChange={(e) => setScores({ ...scores, home: parseInt(e.target.value) || 0 })}
-                          className="w-20 h-20 bg-pl-ink border-2 border-white/10 rounded-xl text-center font-display text-4xl text-pl-cyan focus:border-pl-cyan outline-none transition-colors" 
+                          className="w-20 h-20 bg-pl-ink border-2 border-white/10 rounded-xl text-center font-display text-4xl text-pl-cyan focus:border-pl-cyan outline-none transition-colors"
                         />
                       ) : (
                         <div className="w-20 h-20 bg-white/5 rounded-xl flex items-center justify-center font-display text-4xl text-white/60 mx-auto">
@@ -5276,11 +5373,11 @@ function LeagueApp() {
                     <div className="flex-1 text-center space-y-4">
                       <div className="font-bold text-sm truncate">{selectedFixture.awayName}</div>
                       {canEdit ? (
-                        <input 
-                          type="number" 
+                        <input
+                          type="number"
                           value={scores.away}
                           onChange={(e) => setScores({ ...scores, away: parseInt(e.target.value) || 0 })}
-                          className="w-20 h-20 bg-pl-ink border-2 border-white/10 rounded-xl text-center font-display text-4xl text-pl-cyan focus:border-pl-cyan outline-none transition-colors" 
+                          className="w-20 h-20 bg-pl-ink border-2 border-white/10 rounded-xl text-center font-display text-4xl text-pl-cyan focus:border-pl-cyan outline-none transition-colors"
                         />
                       ) : (
                         <div className="w-20 h-20 bg-white/5 rounded-xl flex items-center justify-center font-display text-4xl text-white/60 mx-auto">
@@ -5292,13 +5389,13 @@ function LeagueApp() {
 
                   {canEdit && (
                     <div className="grid grid-cols-2 gap-3 mb-10">
-                      <button 
+                      <button
                         onClick={submitScore}
                         className="bg-pl-cyan text-pl-ink py-4 rounded-lg font-condensed font-bold text-xs uppercase tracking-widest hover:brightness-110 transition-all"
                       >
                         Confirm Score
                       </button>
-                      <button 
+                      <button
                         onClick={() => setShowModal(false)}
                         className="bg-white/5 text-white/60 py-4 rounded-lg font-condensed font-bold text-xs uppercase tracking-widest hover:bg-white/10 transition-all"
                       >
@@ -5327,7 +5424,7 @@ function LeagueApp() {
                       <div className="flex justify-between items-center mb-1">
                         <span className="text-[10px] font-bold text-pl-cyan uppercase tracking-widest">{comment.authorName}</span>
                         {(comment.authorUid === user?.uid || isAdmin) && (
-                          <button 
+                          <button
                             onClick={() => deleteComment(comment.id)}
                             className="text-white/10 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
                           >
@@ -5350,15 +5447,15 @@ function LeagueApp() {
 
               {isAdmin && (
                 <div className="flex gap-2">
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     value={newComment}
                     onChange={(e) => setNewComment(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && addComment(selectedFixture.id)}
                     placeholder="Type your banter..."
                     className="flex-1 bg-pl-ink border border-white/10 rounded-xl px-4 py-3 text-xs focus:border-pl-cyan outline-none transition-colors"
                   />
-                  <button 
+                  <button
                     onClick={() => addComment(selectedFixture.id)}
                     className="bg-pl-pink text-white p-3 rounded-xl hover:scale-105 transition-transform"
                   >
@@ -5374,13 +5471,13 @@ function LeagueApp() {
       {/* Player Profile Modal */}
       {showPlayerModal && selectedPlayer && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             className="absolute inset-0 bg-pl-ink/90 backdrop-blur-sm"
             onClick={() => setShowPlayerModal(false)}
           />
-          <motion.div 
+          <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             className="relative glass p-8 rounded-2xl max-w-lg w-full border-l-4 border-pl-cyan shadow-2xl"
@@ -5402,8 +5499,8 @@ function LeagueApp() {
                   {getPlayerForm(selectedPlayer.id).length > 0 ? (
                     getPlayerForm(selectedPlayer.id).map((res, i) => (
                       <span key={i} className={`w-6 h-6 rounded flex items-center justify-center text-[10px] font-bold ${
-                        res === 'W' ? 'bg-green-500 text-white' : 
-                        res === 'L' ? 'bg-red-500 text-white' : 
+                        res === 'W' ? 'bg-green-500 text-white' :
+                        res === 'L' ? 'bg-red-500 text-white' :
                         'bg-yellow-500 text-pl-ink'
                       }`}>
                         {res}
@@ -5423,7 +5520,7 @@ function LeagueApp() {
             <div className="space-y-4 mb-8">
               <label className="block text-[10px] font-condensed text-white/40 uppercase tracking-widest">Player Biography</label>
               <div className="bg-white/5 border border-white/10 rounded-xl overflow-hidden">
-                <textarea 
+                <textarea
                   value={playerBio}
                   onChange={(e) => setPlayerBio(e.target.value)}
                   placeholder="Enter a brief bio for this player..."
@@ -5434,13 +5531,13 @@ function LeagueApp() {
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <button 
+              <button
                 onClick={updatePlayerBio}
                 className="bg-pl-cyan text-pl-ink py-4 rounded-lg font-condensed font-bold text-xs uppercase tracking-widest hover:brightness-110 transition-all"
               >
                 Save Profile
               </button>
-              <button 
+              <button
                 onClick={() => setShowPlayerModal(false)}
                 className="bg-white/5 text-white/60 py-4 rounded-lg font-condensed font-bold text-xs uppercase tracking-widest hover:bg-white/10 transition-all"
               >
@@ -5454,13 +5551,13 @@ function LeagueApp() {
       {/* News Modal */}
       {showNewsModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             className="absolute inset-0 bg-pl-ink/90 backdrop-blur-sm"
             onClick={() => setShowNewsModal(false)}
           />
-          <motion.div 
+          <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             className="glass rounded-2xl p-8 w-full max-w-lg relative z-10"
@@ -5469,47 +5566,47 @@ function LeagueApp() {
               {editingNews ? 'Edit Article' : 'Create Article'}
             </h3>
             <p className="text-[10px] font-condensed text-white/40 uppercase tracking-[0.2em] mb-8">Post updates to the SHATTA MOVEMENT LEAGUE news feed</p>
-            
+
             <div className="space-y-6 mb-8">
               <div>
                 <label className="block text-[10px] font-condensed text-white/40 uppercase tracking-widest mb-2">Title</label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   value={newNews.title}
                   onChange={(e) => setNewNews({ ...newNews, title: e.target.value })}
-                  className="w-full bg-pl-ink border border-white/10 rounded px-4 py-3 text-sm focus:border-pl-cyan outline-none transition-colors" 
+                  className="w-full bg-pl-ink border border-white/10 rounded px-4 py-3 text-sm focus:border-pl-cyan outline-none transition-colors"
                   placeholder="e.g. Matchday 5 Highlights"
                 />
               </div>
               <div>
                 <label className="block text-[10px] font-condensed text-white/40 uppercase tracking-widest mb-2">Content</label>
-                <textarea 
+                <textarea
                   value={newNews.content}
                   onChange={(e) => setNewNews({ ...newNews, content: e.target.value })}
-                  className="w-full bg-pl-ink border border-white/10 rounded px-4 py-3 text-sm focus:border-pl-cyan outline-none transition-colors h-40 resize-none" 
+                  className="w-full bg-pl-ink border border-white/10 rounded px-4 py-3 text-sm focus:border-pl-cyan outline-none transition-colors h-40 resize-none"
                   placeholder="Write your article here..."
                 />
               </div>
               <div>
                 <label className="block text-[10px] font-condensed text-white/40 uppercase tracking-widest mb-2">Image URL (Optional)</label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   value={newNews.imageUrl}
                   onChange={(e) => setNewNews({ ...newNews, imageUrl: e.target.value })}
-                  className="w-full bg-pl-ink border border-white/10 rounded px-4 py-3 text-sm focus:border-pl-cyan outline-none transition-colors" 
+                  className="w-full bg-pl-ink border border-white/10 rounded px-4 py-3 text-sm focus:border-pl-cyan outline-none transition-colors"
                   placeholder="https://images.unsplash.com/..."
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <button 
+              <button
                 onClick={editingNews ? updateNews : addNews}
                 className="bg-pl-cyan text-pl-ink py-4 rounded-lg font-condensed font-bold text-xs uppercase tracking-widest hover:brightness-110 transition-all"
               >
                 {editingNews ? 'Update News' : 'Post News'}
               </button>
-              <button 
+              <button
                 onClick={() => setShowNewsModal(false)}
                 className="bg-white/5 text-white/60 py-4 rounded-lg font-condensed font-bold text-xs uppercase tracking-widest hover:bg-white/10 transition-all"
               >
