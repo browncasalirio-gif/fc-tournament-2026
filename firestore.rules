@@ -167,6 +167,17 @@ service cloud.firestore {
              data.status in ['active', 'completed', 'cancelled'];
     }
 
+    function canPickWcTeam() {
+      return isAuthenticated() &&
+             request.resource.data.diff(resource.data).affectedKeys().hasOnly(['wcTeam', 'wcPot']) &&
+             (!('wcTeam' in resource.data) || resource.data.wcTeam == null) &&
+             (!('wcPot' in resource.data) || resource.data.wcPot == null) &&
+             request.resource.data.wcTeam is string &&
+             request.resource.data.wcTeam.size() > 0 &&
+             request.resource.data.wcTeam.size() < 100 &&
+             request.resource.data.wcPot in ['A', 'B'];
+    }
+
     function isValidFixture(data) {
       return data.matchday is int &&
              data.homeId is string && data.awayId is string &&
@@ -216,6 +227,7 @@ service cloud.firestore {
       allow read: if true;
       allow create: if isAdmin() && isValidPlayer(request.resource.data);
       allow update: if isAdmin() || 
+                    canPickWcTeam() ||
                     (isAuthenticated() && 
                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['bio']) &&
                      request.resource.data.bio is string && 

@@ -897,17 +897,10 @@ function LeagueApp() {
     // Pick random
     const randomIndex = Math.floor(Math.random() * availableTeams.length);
     const selectedTeam = availableTeams[randomIndex];
-    const initials = selectedTeam.substring(0, 3).toUpperCase();
-    
-    // Strip old initials if any exist, just to be safe, though there shouldn't be
-    const baseName = player.name.split(' (')[0];
-    const newName = `${baseName} (${initials})`;
-
     try {
       setLoading(true);
       const playerRef = doc(db, 'players', player.id);
       await updateDoc(playerRef, {
-        name: newName,
         wcTeam: selectedTeam,
         wcPot: potLabel
       });
@@ -4292,11 +4285,7 @@ function LeagueApp() {
                         )}
                       </div>
                       {!p.wcTeam ? (
-                        // Allow picking if user is admin, OR if the player's name corresponds to the current logged-in user
-                        (isAdmin || (user && (
-                          p.name.toLowerCase().includes((user.displayName || '').toLowerCase()) ||
-                          p.name.toLowerCase().includes((user.email || '').split('@')[0].toLowerCase())
-                        ))) ? (
+                        user ? (
                           <button
                             onClick={() => pickWcTeam(p.id)}
                             disabled={loading}
@@ -4305,7 +4294,7 @@ function LeagueApp() {
                             Pick Team
                           </button>
                         ) : (
-                          <span className="text-white/20 font-condensed uppercase tracking-widest text-[10px]">Awaiting pick</span>
+                          <span className="text-white/20 font-condensed uppercase tracking-widest text-[10px]">Sign in to pick</span>
                         )
                       ) : (
                         isAdmin && (
