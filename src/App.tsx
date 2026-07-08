@@ -276,6 +276,8 @@ function LeagueApp() {
   const [showSwapPanel, setShowSwapPanel] = useState(false);
   const [swapOutId, setSwapOutId] = useState('');
   const [swapInId, setSwapInId] = useState('');
+  const [wcSwapOutId, setWcSwapOutId] = useState('');
+  const [wcSwapInId, setWcSwapInId] = useState('');
   const [pin, setPin] = useState('');
   const [authError, setAuthError] = useState('');
   const [isAdminLoginMode, setIsAdminLoginMode] = useState(false);
@@ -2173,6 +2175,123 @@ function LeagueApp() {
     } catch (err) {
       console.error('Swap failed', err);
       showToast('Failed to swap player', 'error');
+    }
+  };
+
+  const replaceWcPlayer = async () => {
+    if (!isAdmin || !user || !currentSeasonId || !wcSwapOutId || !wcSwapInId || wcSwapOutId === wcSwapInId) {
+      showToast('Please select two different players', 'error');
+      return;
+    }
+
+    const playerOut = allPlayers.find(p => p.id === wcSwapOutId);
+    const playerIn = allPlayers.find(p => p.id === wcSwapInId);
+    if (!playerOut || !playerIn) {
+      showToast('Could not find selected players', 'error');
+      return;
+    }
+
+    if (!playerOut.wcGroup) {
+      showToast(`${playerOut.name} is not in a WC group`, 'error');
+      return;
+    }
+
+    if (playerIn.wcGroup) {
+      showToast(`${playerIn.name} is already in a WC group`, 'error');
+      return;
+    }
+
+    const outgoingWcFixtures = allFixtures.filter(f =>
+      f.competition === 'wc' &&
+      f.seasonId === currentSeasonId &&
+      (f.homeId === wcSwapOutId || f.awayId === wcSwapOutId)
+    );
+
+    const playedByOutgoing = outgoingWcFixtures.filter(f => f.status === 'played');
+    if (playedByOutgoing.length > 0) {
+      showToast(`${playerOut.name} already has a played WC match. Cannot replace safely.`, 'error');
+      return;
+    }
+
+    const replacementWcFixtures = allFixtures.filter(f =>
+      f.competition === 'wc' &&
+      f.seasonId === currentSeasonId &&
+      (f.homeId === wcSwapInId || f.awayId === wcSwapInId)
+    );
+    if (replacementWcFixtures.length > 0) {
+      showToast(`${playerIn.name} already has WC fixtures`, 'error');
+      return;
+    }
+
+    const affectedFixtures = outgoingWcFixtures.filter(f =>
+      f.status !== 'played' && f.round === `group_${playerOut.wcGroup}`
+    );
+    if (affectedFixtures.length === 0) {
+      showToast(`${playerOut.name} has no pending WC group fixtures to update`, 'error');
+      return;
+    }
+
+    const isReplacementSeeded = WC_SEEDS.includes(playerIn.name.split(' (')[0]);
+    const replacementPot = isReplacementSeeded ? WC_POT_A : WC_POT_B;
+    const takenTeams = new Set(
+      allPlayers
+        .filter(p => p.id !== wcSwapOutId && p.id !== wcSwapInId)
+        .map(p => p.wcTeam)
+        .filter(Boolean)
+    );
+    const availableTeams = replacementPot.filter(team => !takenTeams.has(team));
+    if (!playerIn.wcTeam && availableTeams.length === 0) {
+      showToast(`No available Pot ${isReplacementSeeded ? 'A' : 'B'} teams for ${playerIn.name}`, 'error');
+      return;
+    }
+
+    const assignedTeam = playerIn.wcTeam || availableTeams[Math.floor(Math.random() * availableTeams.length)];
+    const assignedPot = playerIn.wcPot || (isReplacementSeeded ? 'A' : 'B');
+
+    if (!window.confirm(
+      `Replace ${playerOut.name} with ${playerIn.name} in Group ${playerOut.wcGroup}?\n\n${playerOut.name} has no played WC matches.\n${affectedFixtures.length} pending fixture(s) will be updated.\nExisting scores between other players will stay unchanged.`
+    )) return;
+
+    try {
+      setLoading(true);
+      const batch = writeBatch(db);
+
+      batch.update(doc(db, 'players', playerOut.id), {
+        wcGroup: null,
+        wcTeam: null,
+        wcPot: null,
+        active: false
+      });
+
+      batch.update(doc(db, 'players', playerIn.id), {
+        wcGroup: playerOut.wcGroup,
+        wcTeam: assignedTeam,
+        wcPot: assignedPot,
+        active: true
+      });
+
+      affectedFixtures.forEach(f => {
+        const updates: Record<string, any> = {};
+        if (f.homeId === wcSwapOutId) {
+          updates.homeId = wcSwapInId;
+          updates.homeName = playerIn.name;
+        }
+        if (f.awayId === wcSwapOutId) {
+          updates.awayId = wcSwapInId;
+          updates.awayName = playerIn.name;
+        }
+        batch.update(doc(db, 'fixtures', f.id), updates);
+      });
+
+      await batch.commit();
+      setWcSwapOutId('');
+      setWcSwapInId('');
+      showToast(`${playerOut.name} replaced by ${playerIn.name} in Group ${playerOut.wcGroup}!`);
+    } catch (err) {
+      console.error('WC replacement failed', err);
+      showToast('Failed to replace WC player', 'error');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -4230,6 +4349,65 @@ function LeagueApp() {
                     Reset All Teams
                   </button>
                 </div>
+                {(() => {
+                  const groupedPlayers = allPlayers
+                    .filter(p => p.wcGroup)
+                    .sort((a, b) => a.name.localeCompare(b.name));
+                  const replacementPlayers = allPlayers
+                    .filter(p => p.active !== false && !p.wcGroup)
+                    .sort((a, b) => a.name.localeCompare(b.name));
+
+                  return (
+                    <div className="w-full max-w-4xl glass p-5 rounded-2xl border border-white/10 mt-4">
+                      <div className="flex flex-col md:flex-row md:items-end gap-3">
+                        <div className="flex-1">
+                          <label className="block text-[10px] font-condensed uppercase tracking-widest text-white/40 mb-2">
+                            Player leaving WC
+                          </label>
+                          <select
+                            value={wcSwapOutId}
+                            onChange={e => setWcSwapOutId(e.target.value)}
+                            className="w-full bg-pl-ink border border-white/10 rounded-xl px-3 py-3 text-xs focus:border-pl-cyan outline-none"
+                          >
+                            <option value="">Select player</option>
+                            {groupedPlayers.map(p => (
+                              <option key={p.id} value={p.id}>
+                                {p.name} - Group {p.wcGroup} - {p.wcTeam || 'No team'}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="flex-1">
+                          <label className="block text-[10px] font-condensed uppercase tracking-widest text-white/40 mb-2">
+                            Replacement player
+                          </label>
+                          <select
+                            value={wcSwapInId}
+                            onChange={e => setWcSwapInId(e.target.value)}
+                            className="w-full bg-pl-ink border border-white/10 rounded-xl px-3 py-3 text-xs focus:border-pl-cyan outline-none"
+                          >
+                            <option value="">Select replacement</option>
+                            {replacementPlayers.map(p => (
+                              <option key={p.id} value={p.id}>
+                                {p.name} - {p.wcTeam ? `${p.wcTeam} (Pot ${p.wcPot})` : 'team will be picked'}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <button
+                          onClick={replaceWcPlayer}
+                          disabled={loading || !wcSwapOutId || !wcSwapInId}
+                          className="bg-amber-400 text-pl-ink px-5 py-3 rounded-xl font-condensed font-bold uppercase tracking-widest hover:brightness-110 transition-all disabled:opacity-50 text-xs"
+                        >
+                          Replace WC Player
+                        </button>
+                      </div>
+                      <p className="text-[10px] text-white/30 font-condensed uppercase tracking-widest mt-3">
+                        Only works if the player leaving has no played WC matches. Pending group fixtures are updated, played scores stay untouched.
+                      </p>
+                    </div>
+                  );
+                })()}
               </div>
             )}
             
