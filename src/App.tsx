@@ -2328,6 +2328,23 @@ function LeagueApp() {
     }
   };
 
+  const clearFixtureScore = async (fixtureId: string) => {
+    if (!user || !isAdmin) return;
+    if (!window.confirm("Clear this score and set the fixture back to pending?")) return;
+    try {
+      await updateDoc(doc(db, 'fixtures', fixtureId), {
+        homeScore: null,
+        awayScore: null,
+        status: 'pending'
+      });
+      setH2hEditingFixture(null);
+      setPlayoffEditingFixture(null);
+      showToast("Score cleared!");
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, 'fixtures');
+    }
+  };
+
   const submitScore = async () => {
     if (!selectedFixture || !user) return;
     try {
@@ -3525,6 +3542,14 @@ function LeagueApp() {
                               >
                                 Save
                               </button>
+                              {f.status === 'played' && (
+                                <button
+                                  onClick={() => clearFixtureScore(f.id)}
+                                  className="bg-red-500/20 text-red-400 border border-red-500/40 px-4 py-2 rounded-lg font-condensed font-bold text-[10px] uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all"
+                                >
+                                  Clear Score
+                                </button>
+                              )}
                               <button
                                 onClick={() => setH2hEditingFixture(null)}
                                 className="bg-white/10 text-white/60 px-4 py-2 rounded-lg font-condensed font-bold text-[10px] uppercase tracking-widest hover:bg-white/20 transition-all"
