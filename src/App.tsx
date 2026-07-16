@@ -1236,13 +1236,7 @@ function LeagueApp() {
     try {
       setLoading(true);
 
-      // Validate all group games played
-      const groupFixtures = allFixtures.filter(f => f.competition === 'wc' && f.round.startsWith('group_') && f.seasonId === currentSeasonId);
-      if (groupFixtures.some(f => f.status !== 'played')) {
-        throw new Error('Complete all group stage fixtures first!');
-      }
-
-      // Get top 2 from each group (sorted by wcTableData which is already computed)
+      // Get top 2 from each group using the current table, even if some group fixtures are still pending.
       const qualifiers: Record<string, {first: string, second: string}> = {};
       ['A', 'B', 'C', 'D'].forEach(g => {
         const sorted = wcTableData[g];
