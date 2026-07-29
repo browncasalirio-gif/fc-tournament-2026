@@ -2629,15 +2629,6 @@ function LeagueApp() {
             {champions.length > 0 ? champions[champions.length - 1].winner : 'SHATTA MOVEMENT'}{' '}
             <span className="text-pl-cyan">LEAGUE</span>
           </h1>
-          {seasons.find(s => s.id === currentSeasonId) && (() => {
-            const sName = seasons.find(s => s.id === currentSeasonId)!.name;
-            const displayName = /season/i.test(sName) ? sName : `Season ${sName}`;
-            return (
-              <div className="font-condensed text-base md:text-lg text-pl-cyan/70 uppercase tracking-[0.4em] mb-2">
-                {displayName}
-              </div>
-            );
-          })()}
           {champions.length > 0 && (
             <div className="relative my-6">
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-yellow-400/10 to-transparent rounded-2xl blur-xl" />
