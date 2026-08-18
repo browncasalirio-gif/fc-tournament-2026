@@ -331,8 +331,8 @@ function LeagueApp() {
   }, [allFixtures, currentSeasonId]);
 
   const h2hMatchFixtures = useMemo(() => {
-    return wcFixtures.length > 0 ? wcFixtures : seasonFixtures;
-  }, [seasonFixtures, wcFixtures]);
+    return seasonFixtures.filter(f => f.competition !== 'wc');
+  }, [seasonFixtures]);
 
   const getWcFixtureDisplayName = useCallback((playerId: string, fallbackName: string) => {
     const player = allPlayers.find(p => p.id === playerId);
@@ -472,7 +472,7 @@ function LeagueApp() {
     const matches = h2hMatchFixtures.filter(f =>
       (pIds.has(f.homeId) || pIds.has(f.awayId)) &&
       f.status === 'played' &&
-      (f.competition === 'league' || f.competition === 'wc')
+      f.competition !== 'wc'
     );
     // Sort most recent first (highest matchday first)
     const sorted = [...matches].sort((a, b) => b.matchday - a.matchday);
@@ -2699,7 +2699,6 @@ function LeagueApp() {
               { id: 'playoff', icon: Swords, label: 'Playoffs', public: true },
               { id: 'uefa', icon: Trophy, label: 'UEFA', public: true },
               { id: 'halloffame', icon: Trophy, label: 'Hall of Fame', public: true },
-              { id: 'wc', icon: Trophy, label: 'WC', public: true },
               { id: 'admin', icon: ShieldCheck, label: 'Admin', public: false },
             ].filter(t => isAdmin || t.public).map((tab) => (
               <button
@@ -3066,7 +3065,7 @@ function LeagueApp() {
                 </div>
               </div>
 
-              {fixtures.length === 0 && wcFixtures.length === 0 ? (
+              {fixtures.length === 0 ? (
                 <div className="text-center py-20 glass rounded-xl">
                   <Calendar className="mx-auto text-white/10 mb-4" size={48} />
                   <p className="text-white/40 font-condensed tracking-widest uppercase">No fixtures in this season</p>
@@ -3074,7 +3073,7 @@ function LeagueApp() {
               ) : (
                 <div className="space-y-12">
                   {/* League Section */}
-                  {fixtures.length > 0 && wcFixtures.length === 0 && (
+                  {fixtures.length > 0 && (
                     <div className="space-y-8">
                       <div className="flex items-center gap-4">
                         <div className="h-px flex-grow bg-pl-pink/30"></div>
@@ -3156,7 +3155,7 @@ function LeagueApp() {
                     </div>
                   )}
 
-                  {wcFixtures.length > 0 && (() => {
+                  {false && wcFixtures.length > 0 && (() => {
                     const roundLabel = (fixture: Fixture) => {
                       if (fixture.round?.startsWith('group_')) return `Group ${fixture.round.split('_')[1]} - Matchday ${fixture.matchday}`;
                       if (fixture.round === 'wc_QF') return `World Cup Quarter-Finals - Leg ${fixture.matchday}`;
@@ -3442,7 +3441,7 @@ function LeagueApp() {
                         <option value="">Player 1</option>
                         {h2hSelectablePlayers.map(p => (
                           <option key={p.id} value={p.id}>
-                            {formatWcDisplayName(p.name, p.wcTeam)}
+                            {p.name}
                           </option>
                         ))}
                       </select>
@@ -3455,7 +3454,7 @@ function LeagueApp() {
                         <option value="">Player 2</option>
                         {h2hOpponentPlayers.map(p => (
                           <option key={p.id} value={p.id}>
-                            {formatWcDisplayName(p.name, p.wcTeam)}
+                            {p.name}
                           </option>
                         ))}
                       </select>
@@ -3620,7 +3619,7 @@ function LeagueApp() {
                         <option value="">Choose a player...</option>
                         {h2hSelectablePlayers.map(p => (
                           <option key={p.id} value={p.id}>
-                            {formatWcDisplayName(p.name, p.wcTeam)}
+                            {p.name}
                           </option>
                         ))}
                       </select>
@@ -4490,7 +4489,7 @@ function LeagueApp() {
           </motion.div>
         )}
 
-        {activeTab === 'wc' && (
+        {false && activeTab === 'wc' && (
           <motion.div
             key="wc"
             initial={{ opacity: 0, y: 10 }}
@@ -4920,8 +4919,8 @@ function LeagueApp() {
               </div>
             </div>
 
-            {/* WC Seeding Manager */}
-            <div className="glass p-8 rounded-2xl border-l-4 border-amber-400">
+            {/* Retired World Cup tooling is intentionally hidden to preserve historical data. */}
+            {false && <div className="glass p-8 rounded-2xl border-l-4 border-amber-400">
               <div className="flex items-center gap-4 mb-6">
                 <div className="w-12 h-12 bg-amber-400/10 rounded-xl flex items-center justify-center">
                   <Trophy className="text-amber-400" size={24} />
@@ -5109,7 +5108,7 @@ function LeagueApp() {
                   )}
                 </div>
               </div>
-            </div>
+            </div>}
 
             {/* Player Management */}
             <div className="grid lg:grid-cols-1 gap-8">
