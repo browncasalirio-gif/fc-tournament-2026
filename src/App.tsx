@@ -2527,6 +2527,9 @@ function LeagueApp() {
     );
   }, [allPlayers, allFixtures, currentSeasonId]);
 
+  // Hall of Fame entries are appended, making the latest entry the reigning champion.
+  const reigningChampion = champions[champions.length - 1];
+
   if (loading || !isAuthReady) return <div className="flex items-center justify-center h-screen font-display text-2xl animate-pulse">LOADING...</div>;
 
   if (!user && !isGuest) {
@@ -2626,10 +2629,10 @@ function LeagueApp() {
           </div>
 
           <h1 className="font-display text-6xl md:text-8xl font-bold uppercase leading-[0.9] tracking-tight mb-2">
-            {champions.length > 0 ? champions[champions.length - 1].winner : 'FIFA PRO'}{' '}
+            FIFA PRO{' '}
             <span className="text-pl-cyan">LEAGUE</span>
           </h1>
-          {champions.length > 0 && (
+          {reigningChampion && (
             <div className="relative my-6">
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-yellow-400/10 to-transparent rounded-2xl blur-xl" />
               <div className="relative glass border-2 border-yellow-400/40 rounded-2xl px-8 py-6 flex flex-col items-center gap-3 shadow-[0_0_40px_rgba(250,204,21,0.15)]">
@@ -2645,11 +2648,11 @@ function LeagueApp() {
                   </div>
                 </div>
                 <div className="font-display text-4xl md:text-6xl text-yellow-400 uppercase tracking-wider drop-shadow-[0_0_15px_rgba(250,204,21,0.4)]">
-                  {champions[champions.length - 1].winner}
+                  {reigningChampion.winner}
                 </div>
                 <div className="h-px w-32 bg-gradient-to-r from-transparent via-yellow-400/50 to-transparent" />
                 <span className="text-[10px] font-condensed text-yellow-400/40 uppercase tracking-[0.3em]">
-                  {champions[champions.length - 1].season}{champions[champions.length - 1].year ? ` • ${champions[champions.length - 1].year}` : ''}
+                  {reigningChampion.season}{reigningChampion.year ? ` • ${reigningChampion.year}` : ''}
                 </span>
               </div>
             </div>
