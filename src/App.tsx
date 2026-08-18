@@ -2529,6 +2529,7 @@ function LeagueApp() {
 
   // Hall of Fame entries are appended, making the latest entry the reigning champion.
   const reigningChampion = champions[champions.length - 1];
+  const currentSeason = seasons.find(season => season.id === currentSeasonId);
 
   if (loading || !isAuthReady) return <div className="flex items-center justify-center h-screen font-display text-2xl animate-pulse">LOADING...</div>;
 
@@ -2632,6 +2633,11 @@ function LeagueApp() {
             FIFA PRO{' '}
             <span className="text-pl-cyan">LEAGUE</span>
           </h1>
+          {currentSeason && (
+            <p className="font-condensed text-sm md:text-base font-bold uppercase tracking-[0.3em] text-white/60">
+              Current Season: <span className="text-pl-cyan">{currentSeason.name}</span>
+            </p>
+          )}
           {reigningChampion && (
             <div className="relative my-6">
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-yellow-400/10 to-transparent rounded-2xl blur-xl" />
