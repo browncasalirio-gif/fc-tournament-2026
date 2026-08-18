@@ -82,10 +82,10 @@ type Fixture = {
   awayScore: number | null;
   status: 'pending' | 'played' | 'overdue';
   deadline: string;
-  competition: 'league' | 'uefa' | 'preseason' | 'playoff';
+  competition: 'league' | 'uefa' | 'preseason' | 'playoff' | 'wc';
   ownerUid: string;
   seasonId?: string;
-  round?: 'QF' | 'SF' | 'F';
+  round?: string;
 };
 
 type Season = {
@@ -1981,7 +1981,7 @@ function LeagueApp() {
 
   const shareToWhatsApp = (fixture: Fixture) => {
     if (fixture.status !== 'played') return;
-    const message = `${fixture.homeName} just humbled ${fixture.awayName} ${fixture.homeScore}-${fixture.awayScore}! 🏆 SHATTA MOVEMENT LEAGUE`;
+    const message = `${fixture.homeName} just humbled ${fixture.awayName} ${fixture.homeScore}-${fixture.awayScore}! 🏆 FIFA PRO LEAGUE`;
     const url = `https://wa.me/?text=${encodeURIComponent(message)}`;
     window.open(url, '_blank');
   };
@@ -2429,7 +2429,7 @@ function LeagueApp() {
   };
 
   const shareTable = () => {
-    const text = `🏆 SHATTA MOVEMENT LEAGUE Standings\n\n` +
+    const text = `🏆 FIFA PRO LEAGUE Standings\n\n` +
       tableData.map((p, i) => `${i+1}. ${p.name} - ${p.pts}pts (${p.w}W ${p.d}D ${p.l}L)`).join('\n');
     navigator.clipboard.writeText(text);
     showToast("Table copied to clipboard!");
@@ -2543,7 +2543,7 @@ function LeagueApp() {
             <div className="inline-flex items-center justify-center w-20 h-20 bg-white/5 rounded-2xl mb-6 border border-white/10">
               <Trophy className="text-pl-cyan" size={40} />
             </div>
-            <h1 className="font-display text-4xl uppercase tracking-wider mb-2">Shatta <span className="text-pl-cyan">League</span></h1>
+            <h1 className="font-display text-4xl uppercase tracking-wider mb-2">FIFA Pro <span className="text-pl-cyan">League</span></h1>
             <p className="text-white/40 font-condensed uppercase tracking-widest text-xs">Season 2025/26 • {isAdminLoginMode ? 'Admin Portal' : 'Player Portal'}</p>
           </div>
 
@@ -2626,7 +2626,7 @@ function LeagueApp() {
           </div>
 
           <h1 className="font-display text-6xl md:text-8xl font-bold uppercase leading-[0.9] tracking-tight mb-2">
-            {champions.length > 0 ? champions[champions.length - 1].winner : 'SHATTA MOVEMENT'}{' '}
+            {champions.length > 0 ? champions[champions.length - 1].winner : 'FIFA PRO'}{' '}
             <span className="text-pl-cyan">LEAGUE</span>
           </h1>
           {champions.length > 0 && (
@@ -3900,7 +3900,7 @@ function LeagueApp() {
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="font-display text-4xl uppercase tracking-wider mb-1">League <span className="text-pl-pink">News</span></h2>
-                  <p className="text-white/40 font-condensed uppercase tracking-widest text-xs">Latest updates from SHATTA MOVEMENT LEAGUE</p>
+                  <p className="text-white/40 font-condensed uppercase tracking-widest text-xs">Latest updates from FIFA PRO LEAGUE</p>
                 </div>
                 {isAdmin && (
                   <button
@@ -5227,7 +5227,7 @@ function LeagueApp() {
                 <div className="space-y-4">
                   <p className="text-[10px] text-white/40 uppercase tracking-widest leading-relaxed">
                     Format: <span className="text-pl-cyan">Home Team X-Y Away Team</span> (One per line)<br/>
-                    Example: <span className="text-white/60 italic">Shatta 2-1 Movement</span>
+                    Example: <span className="text-white/60 italic">United 2-1 City</span>
                   </p>
                   <textarea
                     value={bulkResultsText}
@@ -5621,7 +5621,7 @@ function LeagueApp() {
             <h3 className="font-display text-xl uppercase tracking-widest text-pl-cyan mb-2">
               {editingNews ? 'Edit Article' : 'Create Article'}
             </h3>
-            <p className="text-[10px] font-condensed text-white/40 uppercase tracking-[0.2em] mb-8">Post updates to the SHATTA MOVEMENT LEAGUE news feed</p>
+            <p className="text-[10px] font-condensed text-white/40 uppercase tracking-[0.2em] mb-8">Post updates to the FIFA PRO LEAGUE news feed</p>
 
             <div className="space-y-6 mb-8">
               <div>
@@ -5676,11 +5676,11 @@ function LeagueApp() {
       <footer className="bg-pl-ink border-t border-white/5 py-10 px-6">
         <div className="max-w-5xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded bg-pl-pink flex items-center justify-center font-display text-lg">SM</div>
-            <div className="font-condensed font-bold text-[10px] uppercase tracking-[0.3em]">SHATTA MOVEMENT LEAGUE</div>
+            <div className="w-8 h-8 rounded bg-pl-pink flex items-center justify-center font-display text-lg">FPL</div>
+            <div className="font-condensed font-bold text-[10px] uppercase tracking-[0.3em]">FIFA PRO LEAGUE</div>
           </div>
           <div className="text-white/20 font-condensed text-[10px] uppercase tracking-widest">
-            Built for the SHATTA MOVEMENT Community • 2026
+            Built for the FIFA Pro League Community • 2026
           </div>
         </div>
       </footer>

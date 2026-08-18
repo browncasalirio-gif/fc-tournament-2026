@@ -259,6 +259,11 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
+    match /config/champions {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     match /config/{docId} {
       allow read, write: if isAdmin();
     }
