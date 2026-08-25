@@ -471,13 +471,13 @@ function LeagueApp() {
     const pIds = new Set([h2hSoloPlayer]);
     const matches = h2hMatchFixtures.filter(f =>
       (pIds.has(f.homeId) || pIds.has(f.awayId)) &&
-      f.status === 'played' &&
       f.competition !== 'wc'
     );
-    // Sort most recent first (highest matchday first)
+    // Include the full schedule, but calculate results from completed matches only.
     const sorted = [...matches].sort((a, b) => b.matchday - a.matchday);
+    const playedMatches = sorted.filter(f => f.status === 'played');
     let wins = 0, losses = 0, draws = 0, gf = 0, ga = 0;
-    sorted.forEach(f => {
+    playedMatches.forEach(f => {
       const isHome = pIds.has(f.homeId);
       const myGoals = isHome ? f.homeScore! : f.awayScore!;
       const oppGoals = isHome ? f.awayScore! : f.homeScore!;
@@ -487,7 +487,7 @@ function LeagueApp() {
       else if (myGoals < oppGoals) losses++;
       else draws++;
     });
-    return { matches: sorted, wins, losses, draws, gf, ga, played: sorted.length, pIds };
+    return { matches: sorted, wins, losses, draws, gf, ga, played: playedMatches.length, pIds };
   }, [h2hSoloPlayer, h2hMatchFixtures]);
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
@@ -3698,20 +3698,22 @@ function LeagueApp() {
                                 </div>
                                 {/* Home leg: selected player at home */}
                                 {homeLeg && (() => {
-                                  const myG = homeLeg.homeScore!;
-                                  const oppG = homeLeg.awayScore!;
-                                  const res = myG > oppG ? 'W' : myG < oppG ? 'L' : 'D';
+                                  const isPlayed = homeLeg.status === 'played';
+                                  const myG = homeLeg.homeScore ?? 0;
+                                  const oppG = homeLeg.awayScore ?? 0;
+                                  const res = isPlayed ? (myG > oppG ? 'W' : myG < oppG ? 'L' : 'D') : null;
                                   const resColor = res === 'W' ? 'text-green-400' : res === 'L' ? 'text-red-400' : 'text-white/60';
                                   return (
                                     <div className="grid grid-cols-3 items-center px-4 py-3 hover:bg-white/5 transition-colors">
                                       <div className="font-bold text-sm text-pl-cyan">{playerName}</div>
                                       <div className="flex flex-col items-center gap-1">
                                         <div className="flex items-center justify-center gap-3">
-                                          <span className={`font-display text-xl ${resColor}`}>{homeLeg.homeScore}</span>
+                                          <span className={`font-display text-xl ${resColor}`}>{isPlayed ? homeLeg.homeScore : '-'}</span>
                                           <span className="text-white/20 text-[8px] font-condensed uppercase">vs</span>
-                                          <span className="font-display text-xl text-white/50">{homeLeg.awayScore}</span>
+                                          <span className="font-display text-xl text-white/50">{isPlayed ? homeLeg.awayScore : '-'}</span>
                                         </div>
-                                        {isAdmin && (
+                                        {!isPlayed && <span className="text-[9px] font-condensed text-amber-400 uppercase tracking-widest">Pending</span>}
+                                        {isAdmin && isPlayed && (
                                           <button
                                             onClick={() => clearFixtureScore(homeLeg.id)}
                                             className="text-[9px] font-condensed text-red-400/70 uppercase tracking-widest hover:text-red-400 transition-colors"
@@ -3726,20 +3728,22 @@ function LeagueApp() {
                                 })()}
                                 {/* Away leg: selected player away */}
                                 {awayLeg && (() => {
-                                  const myG = awayLeg.awayScore!;
-                                  const oppG = awayLeg.homeScore!;
-                                  const res = myG > oppG ? 'W' : myG < oppG ? 'L' : 'D';
+                                  const isPlayed = awayLeg.status === 'played';
+                                  const myG = awayLeg.awayScore ?? 0;
+                                  const oppG = awayLeg.homeScore ?? 0;
+                                  const res = isPlayed ? (myG > oppG ? 'W' : myG < oppG ? 'L' : 'D') : null;
                                   const resColor = res === 'W' ? 'text-green-400' : res === 'L' ? 'text-red-400' : 'text-white/60';
                                   return (
                                     <div className="grid grid-cols-3 items-center px-4 py-3 hover:bg-white/5 transition-colors">
                                       <div className="font-bold text-sm text-white/60">{group.oppName}</div>
                                       <div className="flex flex-col items-center gap-1">
                                         <div className="flex items-center justify-center gap-3">
-                                          <span className="font-display text-xl text-white/50">{awayLeg.homeScore}</span>
+                                          <span className="font-display text-xl text-white/50">{isPlayed ? awayLeg.homeScore : '-'}</span>
                                           <span className="text-white/20 text-[8px] font-condensed uppercase">vs</span>
-                                          <span className={`font-display text-xl ${resColor}`}>{awayLeg.awayScore}</span>
+                                          <span className={`font-display text-xl ${resColor}`}>{isPlayed ? awayLeg.awayScore : '-'}</span>
                                         </div>
-                                        {isAdmin && (
+                                        {!isPlayed && <span className="text-[9px] font-condensed text-amber-400 uppercase tracking-widest">Pending</span>}
+                                        {isAdmin && isPlayed && (
                                           <button
                                             onClick={() => clearFixtureScore(awayLeg.id)}
                                             className="text-[9px] font-condensed text-red-400/70 uppercase tracking-widest hover:text-red-400 transition-colors"
