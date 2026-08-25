@@ -3667,8 +3667,20 @@ function LeagueApp() {
                       if (!grouped[oppName]) grouped[oppName] = { oppName, matches: [] };
                       grouped[oppName].matches.push(f);
                     });
-                    // Sort groups: most recent match first
-                    const sortedGroups = Object.entries(grouped).sort((a, b) => b[1].matches[0].matchday - a[1].matches[0].matchday);
+                    // Keep completed opponents first and opponents not yet played at the end.
+                    const sortedGroups = Object.entries(grouped).sort((a, b) => {
+                      const aHasPlayed = a[1].matches.some(f => f.status === 'played');
+                      const bHasPlayed = b[1].matches.some(f => f.status === 'played');
+                      if (aHasPlayed !== bHasPlayed) return aHasPlayed ? -1 : 1;
+
+                      const aMatchday = aHasPlayed
+                        ? Math.max(...a[1].matches.filter(f => f.status === 'played').map(f => f.matchday))
+                        : Math.min(...a[1].matches.map(f => f.matchday));
+                      const bMatchday = bHasPlayed
+                        ? Math.max(...b[1].matches.filter(f => f.status === 'played').map(f => f.matchday))
+                        : Math.min(...b[1].matches.map(f => f.matchday));
+                      return aHasPlayed ? bMatchday - aMatchday : aMatchday - bMatchday;
+                    });
                     const playerName = allPlayers.find(p => p.id === h2hSoloPlayer)?.name || '';
 
                     return (
@@ -3676,12 +3688,27 @@ function LeagueApp() {
                         <h3 className="font-condensed font-bold text-xs uppercase tracking-widest text-white/40">
                           Matches by Opponent ({soloPlayerData.matches.length} total)
                         </h3>
-                        {sortedGroups.map(([oppId, group]) => {
+                        {sortedGroups.map(([oppId, group], groupIndex) => {
                           const homeLeg = group.matches.find(f => pIds.has(f.homeId));
                           const awayLeg = group.matches.find(f => pIds.has(f.awayId));
+                          const hasPlayed = group.matches.some(f => f.status === 'played');
+                          const previousGroupHasPlayed = groupIndex > 0
+                            ? sortedGroups[groupIndex - 1][1].matches.some(f => f.status === 'played')
+                            : false;
+                          const startsUnplayedSection = !hasPlayed && (groupIndex === 0 || previousGroupHasPlayed);
 
                           return (
-                            <div key={oppId} className="glass rounded-xl overflow-hidden border border-white/10">
+                            <React.Fragment key={oppId}>
+                            {startsUnplayedSection && (
+                              <div className="flex items-center gap-4 pt-4">
+                                <div className="h-px flex-grow bg-amber-400/20" />
+                                <h3 className="font-condensed font-bold text-xs uppercase tracking-widest text-amber-400">
+                                  Players Not Played Yet
+                                </h3>
+                                <div className="h-px flex-grow bg-amber-400/20" />
+                              </div>
+                            )}
+                            <div className={`glass rounded-xl overflow-hidden border ${hasPlayed ? 'border-white/10' : 'border-amber-400/20'}`}>
                               <div className="bg-white/5 px-4 py-3 border-b border-white/10">
                                 <h4 className="font-condensed font-bold text-sm uppercase tracking-wider">
                                   <span className="text-pl-cyan">{playerName}</span>
@@ -3763,6 +3790,7 @@ function LeagueApp() {
                                 )}
                               </div>
                             </div>
+                            </React.Fragment>
                           );
                         })}
                       </div>
