@@ -2,7 +2,9 @@
 <html>
 <head><title>Add Fixtures for New Player</title></head>
 <body>
-<h2>Add Fixtures for Josh-baybee99</h2>
+<h2>Add Fixtures for a New Player</h2>
+<p>Enter the player's exact name as it appears in the app, then click to add home &amp; away fixtures vs every other player in the active season. Existing fixtures are never changed, and nothing is added if the player already has fixtures this season.</p>
+<input id="playerName" type="text" placeholder="e.g. Mr_no_nonsense" style="padding:8px;min-width:260px" />
 <button onclick="addFixtures()">Click to Add Fixtures</button>
 <pre id="log"></pre>
 
@@ -35,10 +37,15 @@ window.addFixtures = async function() {
     const playersSnap = await getDocs(collection(db, 'players'));
     const players = playersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-    // Find Josh-baybee99
-    const newPlayer = players.find(p => p.name === 'Josh-baybee99');
+    // Find the player named in the input (no hardcoded name)
+    const playerName = document.getElementById('playerName').value.trim();
+    if (!playerName) {
+      log.textContent += "ERROR: Enter a player name first!\n";
+      return;
+    }
+    const newPlayer = players.find(p => p.name === playerName);
     if (!newPlayer) {
-      log.textContent += "ERROR: Could not find player 'Josh-baybee99'!\n";
+      log.textContent += "ERROR: Could not find player '" + playerName + "'!\n";
       log.textContent += "Available players: " + players.map(p => p.name).join(', ');
       return;
     }
@@ -56,6 +63,17 @@ window.addFixtures = async function() {
       return;
     }
     log.textContent += "Active season: " + activeSeason.name + " (ID: " + activeSeason.id + ")\n\n";
+
+    // Refuse if the player already has fixtures this season (prevents duplicates)
+    const seasonFixturesSnap = await getDocs(collection(db, 'fixtures'));
+    const alreadyHasFixtures = seasonFixturesSnap.docs.some(docSnap => {
+      const f = docSnap.data();
+      return f.seasonId === activeSeason.id && (f.homeId === newPlayer.id || f.awayId === newPlayer.id);
+    });
+    if (alreadyHasFixtures) {
+      log.textContent += "ERROR: " + newPlayer.name + " already has fixtures this season — nothing was added.\n";
+      return;
+    }
 
     // Get existing fixtures to determine the next matchday
     const fixturesSnap = await getDocs(collection(db, 'fixtures'));
