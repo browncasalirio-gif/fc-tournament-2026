@@ -318,6 +318,20 @@ function LeagueApp() {
     return allFixtures.filter(f => f.seasonId === currentSeasonId);
   }, [allFixtures, currentSeasonId]);
 
+  // Players who already have a league fixture this season. Used to show the
+  // "add to current season" button only where no fixtures exist yet, so the
+  // same player can never be fixture-generated twice.
+  const playersWithCurrentLeagueFixtures = useMemo(() => {
+    const ids = new Set<string>();
+    allFixtures
+      .filter(f => f.competition === 'league' && f.seasonId === currentSeasonId)
+      .forEach(f => {
+        ids.add(f.homeId);
+        ids.add(f.awayId);
+      });
+    return ids;
+  }, [allFixtures, currentSeasonId]);
+
   const uefaFixtures = useMemo(() => {
     return allFixtures.filter(f => f.competition === 'uefa' && f.seasonId === currentSeasonId);
   }, [allFixtures, currentSeasonId]);
@@ -1785,6 +1799,76 @@ function LeagueApp() {
       showToast("Player added!");
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, 'players');
+    }
+  };
+
+  // Add a player to the CURRENT season after it has already started, without
+  // touching any existing fixture or result. Creates one home and one away
+  // pending fixture against every other active player, with matchdays
+  // continuing after the current max matchday. Refuses to run if the player
+  // already has a league fixture this season, so a second click can never
+  // duplicate fixtures. Also activates a hidden (inactive) player first, so
+  // they appear in the table and H2H once their fixtures exist.
+  const addMidSeasonFixtures = async (player: Player) => {
+    if (!user || !isAdmin) {
+      showToast("Admin login required to add fixtures", "error");
+      return;
+    }
+    if (!currentSeasonId) {
+      showToast("Please select or create a season first", "error");
+      return;
+    }
+    const opponents = uniquePlayers.filter(p => p.active !== false && p.id !== player.id);
+    if (opponents.length < 1) {
+      showToast("Need at least one other active player", "error");
+      return;
+    }
+    const alreadyHasFixtures = fixtures.some(f => f.homeId === player.id || f.awayId === player.id);
+    if (alreadyHasFixtures) {
+      showToast(`${player.name} already has fixtures this season — nothing was added`, "error");
+      return;
+    }
+    if (!window.confirm(`Add ${player.name} to the current season? This creates ${opponents.length * 2} new fixtures (home and away vs each other active player). Existing results will not be changed.`)) return;
+    try {
+      setLoading(true);
+      if (player.active === false) {
+        const ids = playerIdsByName[player.name] || [player.id];
+        for (const pid of ids) {
+          await updateDoc(doc(db, 'players', pid), { active: true });
+        }
+      }
+      let matchday = Math.max(...fixtures.map(f => f.matchday || 0), 0) + 1;
+      let fixtureCount = 0;
+      const today = new Date();
+      const batch = writeBatch(db);
+      const addFixture = (home: Player, away: Player) => {
+        const deadline = new Date(today);
+        deadline.setDate(today.getDate() + (fixtureCount + 1) * 7);
+        batch.set(doc(collection(db, 'fixtures')), {
+          matchday,
+          homeId: home.id,
+          awayId: away.id,
+          homeName: home.name,
+          awayName: away.name,
+          homeScore: null,
+          awayScore: null,
+          status: 'pending',
+          deadline: deadline.toISOString().split('T')[0],
+          competition: 'league',
+          ownerUid: user.uid,
+          seasonId: currentSeasonId
+        });
+        fixtureCount++;
+        matchday++;
+      };
+      opponents.forEach(opponent => addFixture(player, opponent));
+      opponents.forEach(opponent => addFixture(opponent, player));
+      await batch.commit();
+      showToast(`Added ${fixtureCount} league fixtures for ${player.name} — existing results untouched`);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.CREATE, 'fixtures');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -3285,6 +3369,7 @@ function LeagueApp() {
                           <Plus size={14} /> Add to Squad
                         </button>
                       </form>
+                      <p className="text-[10px] text-white/40 leading-relaxed mb-8 -mt-4">Mid-season? A newly added player gets no fixtures automatically. Use the + button on their squad card to add home &amp; away fixtures vs every other active player — existing results are never changed, and the button disappears once they have fixtures.</p>
 
                       <h3 className="font-condensed font-bold text-xs uppercase tracking-widest text-pl-cyan mb-4">Bulk Import</h3>
                       <div className="space-y-4">
@@ -3340,6 +3425,18 @@ function LeagueApp() {
                         <div className="flex items-center gap-2">
                           {isAdmin && (
                             <>
+                              {!playersWithCurrentLeagueFixtures.has(p.id) && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    addMidSeasonFixtures(p);
+                                  }}
+                                  className="p-2 text-pl-cyan/60 hover:text-pl-cyan transition-colors md:opacity-0 md:group-hover:opacity-100"
+                                  title="Add to current season — creates home & away fixtures vs every other active player (existing results untouched)"
+                                >
+                                  <Plus size={16} />
+                                </button>
+                              )}
                               <button
                                 onClick={async (e) => {
                                   e.stopPropagation();
